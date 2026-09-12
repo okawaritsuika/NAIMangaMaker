@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse, parse_qs
 
 from .iterative_comic import Workbench, ROOT, identity, save, read, now
-from .iterative_recovery import RecoverySession, archive_failed_stage, conflict, digest, disk_project, recoverable
+from .iterative_recovery import RecoverySession, IncompleteResponseError, archive_failed_stage, conflict, digest, disk_project, recoverable
 
 API_VERSION = 'editing-v1'
 
@@ -259,7 +259,7 @@ class App:
                         except ValueError as guard_error:
                             message = str(guard_error)
                     job.update(status='failed', message=message, error=message, error_type=type(exc).__name__)
-                    job['automatic_retry_pending'] = bool(isinstance(exc,json.JSONDecodeError)
+                    job['automatic_retry_pending'] = bool(isinstance(exc,(json.JSONDecodeError, IncompleteResponseError))
                         and not job.get('auto_run_id') and job['kind'] not in ('render','studio_render')
                         and job.get('automatic_retries',0)<2)
             finally:
@@ -271,14 +271,14 @@ class App:
         # jobs get one stage retry and one fresh operation, never image retries.
         if (job['status'] == 'failed' and not job.get('auto_run_id')
                 and job['kind'] not in ('render', 'studio_render')
-                and job.get('error_type') == 'JSONDecodeError'
+                and job.get('error_type') in ('JSONDecodeError', 'IncompleteResponseError')
                 and job.get('automatic_retries', 0) < 2):
             try:
                 with self.lock:
                     restart = job.get('automatic_retries', 0) >= 1
                     result = self.retry(jid, automatic=True, restart=restart)
                     child = self.get_job(result['job_id'])
-                    child['message'] = 'JSON 오류로 이 요청을 처음부터 한 번 다시 시도합니다.' if restart else 'JSON 오류가 난 단계만 자동 재시도합니다.'
+                    child['message'] = '응답 오류로 이 요청을 처음부터 한 번 다시 시도합니다.' if restart else '응답 오류가 난 단계만 자동 재시도합니다.'
                     self.persist(child)
             except (ValueError, OSError) as exc:
                 with self.lock:

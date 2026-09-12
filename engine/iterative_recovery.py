@@ -9,6 +9,18 @@ from pathlib import Path
 _SESSION = ContextVar('comic_recovery_session', default=None)
 
 
+class IncompleteResponseError(ValueError):
+    """A received text response was not confirmed complete; never accept its fragments."""
+
+
+def incomplete_response(result):
+    if result.get('finish_reason') == 'length':
+        return IncompleteResponseError('응답이 출력 길이 제한에 도달해 중단됐어요. 원문은 보존했어요. 요청할 컷 수나 설명을 줄여 다시 시도해 주세요.')
+    if result.get('http_status') == 200 and result.get('finish_reason') is None:
+        return IncompleteResponseError('응답이 끝나기 전에 전송이 끊겼어요. 미완성 원문은 보존했어요. 이 단계의 응답을 다시 받아야 합니다.')
+    return IncompleteResponseError('응답의 정상 종료를 확인하지 못했어요. 원문은 보존했어요. 실패 단계의 응답을 다시 받아야 합니다.')
+
+
 def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
                                      separators=(',', ':')).encode('utf-8')).hexdigest()
@@ -137,7 +149,7 @@ def run_stage(workbench, folder, name, request_body):
     generate(request_path, target, 'NOVELAI_API_KEY', api_key=workbench.key_provider())
     result = read(result_path)
     if result.get('http_status') != 200 or result.get('finish_reason') != 'stop':
-        raise ValueError('응답의 완료를 확인하지 못했어요. 받은 원문은 보존했어요.')
+        raise incomplete_response(result)
     value = json_object(raw_path.read_text(encoding='utf-8'), audit_folder=target)
     save(target / 'parsed.json', value)
     save(marker, dict(status='complete', completed=now(), request_sha256=digest(request_body)))
@@ -202,6 +214,19 @@ def archive_failed_stage(workbench, job, *, automatic=False):
     folder = (base / job['stage_folder']).resolve()
     if not folder.is_relative_to(base):
         raise ValueError('응답 보존 경로가 올바르지 않아요.')
+    # A validation fix can make an already complete director response usable.
+    # Recheck all decision constraints before reusing it; never reuse truncated text.
+    if job.get('kind') == 'direct' and stage == 'director':
+        from .iterative_director import validate_decision
+        from .iterative_comic import json_object
+        try:
+            result = read(folder / 'result.json')
+            if result.get('http_status') == 200 and result.get('finish_reason') == 'stop':
+                raw = json_object((folder / 'story.txt').read_text(encoding='utf-8'))
+                validate_decision(raw, read(folder.parent / 'director_context.json'))
+                return
+        except (ValueError, OSError, KeyError, TypeError):
+            pass
     # A process interruption after receiving a complete response needs no new request.
     if job['status'] == 'interrupted':
         if stage == 'image' and (folder / 'page.png').exists():

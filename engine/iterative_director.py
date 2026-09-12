@@ -104,6 +104,14 @@ def validate_decision(raw, context):
     if not isinstance(raw, dict):
         raise ValueError('자동 편집 판단을 JSON 객체로 읽지 못했어요. 원문은 보존했어요.')
     raw = copy.deepcopy(raw)
+    # Layout and translated commentary are presentation metadata, not story decisions.
+    # Keep the English reasoning when the model omits its Korean translation.
+    if raw.get('layout') is None or (isinstance(raw.get('layout'), str) and not raw['layout'].strip()):
+        raw['layout'] = 'auto'
+    if isinstance(raw.get('layout'), str):
+        raw['layout'] = raw['layout'].strip().lower()
+    if (not isinstance(raw.get('reason_ko'), str) or not re.search('[가-힣]', raw['reason_ko'])) and isinstance(raw.get('reason_en'), str):
+        raw['reason_ko'] = '판단 설명(영어 원문): ' + raw['reason_en']
     if raw.get('action') == 'stop':
         instruction = raw.get('instruction')
         if instruction is not None and (not isinstance(instruction, str) or instruction.strip()):
@@ -184,6 +192,8 @@ def plan_next(workbench, project, payload, folder):
     decision = validate_decision(raw, context)
     save(folder / 'editorial_audit.json', dict(
         version='page-evidence-v1' if task.startswith(PROMPT) else 'preserved-request',
+        presentation_fallbacks={key: decision[key] for key in ('layout', 'reason_ko')
+                                if decision[key] != raw.get(key)},
         notes=decision.get('editorial', {}),
         missing_notes=[key for key in ('page_question', 'visible_evidence', 'camera_goal', 'speech_reason')
                        if key not in decision.get('editorial', {})],

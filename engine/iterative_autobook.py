@@ -155,9 +155,10 @@ class AutoBooks:
                     job = self.app.get_job(job['retry_job_id'])
                 if job['status'] in ('failed', 'interrupted'):
                     # This explicit resume permits one attempt even for an image failure.
+                    step['attempt_offset'] = sum(j.get('auto_run_id') == rid and j.get('auto_step_key') == step['key'] for j in self.app.jobs.values())
                     result = self.app.retry(job['id'], auto_run_id=rid)
                     step['job_id'] = result['job_id']
-                    step['retries'] = 1
+                    step.update(retries=1, restarted=False)
                     run['current_job_id'] = result['job_id']
                 else:
                     step['job_id'] = job['id']
@@ -248,7 +249,7 @@ class AutoBooks:
                             self.accepted(run, job)
                             continue
                         if job['status'] in ('failed', 'interrupted'):
-                            attempts = sum(j.get('auto_run_id') == rid and j.get('auto_step_key') == step['key'] for j in self.app.jobs.values())
+                            attempts = sum(j.get('auto_run_id') == rid and j.get('auto_step_key') == step['key'] for j in self.app.jobs.values()) - step.get('attempt_offset', 0)
                             public = self.app.public_job(job)
                             restart = step.get('retries', 0) >= 1 or not public['retryable']
                             can_retry = public['restartable' if restart else 'retryable']
