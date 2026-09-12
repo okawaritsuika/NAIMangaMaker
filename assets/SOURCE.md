@@ -1,0 +1,1 @@
+Icon reconstructed from this project’s CSS brandmark: three rounded rectangles, two above one spanning the bottom, rotated -5deg in CSS. Source: PromptServer-main/experiments/xialong_prompt_lab_20260910/iterative_comic.html (.brandmark). No external icon file or icon library used. Colors adapted to remote palette. PNG/ICO generated using Pillow geometric drawing.

@@ -1,0 +1,15 @@
+{
+  "prompt": "manga illustration, clean expressive lineart, detailed background, color, fully clothed, ",
+  "uc": "lowres, blurry, bad anatomy, extra fingers",
+  "width": 832,
+  "height": 1216,
+  "steps": 23,
+  "scale": 5.0,
+  "cfg_rescale": 0.24,
+  "seed": 1,
+  "n_samples": 1,
+  "sampler": "k_euler_ancestral",
+  "noise_schedule": "karras",
+  "uncond_scale": 0.0,
+  "legacy_v3_extend": false
+}

@@ -1,0 +1,104 @@
+{
+  "dataset": "Jio7/danbooru-tags-classified",
+  "revision": "90da0a2bc51724d2b28aef1f3f2a422663a2ede3",
+  "downloaded_at": "2026-09-08T23:53:27.9166720Z",
+  "license_in_dataset_card": "mit",
+  "files": [
+    {
+      "file": "README.md",
+      "bytes": 1422,
+      "sha256": "cfd110c92d194d91d7e5f340caa4be99356e0302390be37710cc82d0b0f82a93",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/README.md"
+    },
+    {
+      "file": "action.csv",
+      "bytes": 49703,
+      "sha256": "bb3b3b8191346b8ae86d64585b90c31675c994888eabe04cf804b1555de4bb00",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/action.csv"
+    },
+    {
+      "file": "artist.csv",
+      "bytes": 1377491,
+      "sha256": "07fd04a0eab86c541b338e0e23691163c89b64ecf46729873a873063f1b2d868",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/artist.csv"
+    },
+    {
+      "file": "attire.csv",
+      "bytes": 222586,
+      "sha256": "ebeec7b548da2ed9d2a210ea0a912c1c4a1d4a4ad950f5a51d8531d72d4b1652",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/attire.csv"
+    },
+    {
+      "file": "character.csv",
+      "bytes": 1380746,
+      "sha256": "228a720ac556c83d9a4f9dbf27d7cc6fcaeb120c4c24c10480ce4dc2fb1a5745",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/character.csv"
+    },
+    {
+      "file": "count.csv",
+      "bytes": 507,
+      "sha256": "8efc70e4663670f1245dfb3ea44bebcb4b71fbfd705fd0bb34cbf78986c2599e",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/count.csv"
+    },
+    {
+      "file": "expression.csv",
+      "bytes": 4359,
+      "sha256": "1e12209bed41b85b1c6c7379dcdbbcab7f58b0102b18cb8711a9339053cfea9b",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/expression.csv"
+    },
+    {
+      "file": "feature.csv",
+      "bytes": 56115,
+      "sha256": "7f48a01801220ff41103971983df7f7ea48663edb0c6b70a607eb3dd12d1deb2",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/feature.csv"
+    },
+    {
+      "file": "meme.csv",
+      "bytes": 17589,
+      "sha256": "61173ea3ae52ce806cb6f8712a19a65723a1f51b6ab74d2afda416611186fb78",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/meme.csv"
+    },
+    {
+      "file": "meta.csv",
+      "bytes": 11267,
+      "sha256": "18d7c78cf4e7713eb45ee5df8efd18b342afd628450b830371cb1a81d4df97e2",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/meta.csv"
+    },
+    {
+      "file": "object.csv",
+      "bytes": 75691,
+      "sha256": "3e17251cfceef0727defe1515867389d99f2cf93cd056c9d46d26218e06b43af",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/object.csv"
+    },
+    {
+      "file": "other.csv",
+      "bytes": 318666,
+      "sha256": "366ced9c71af05981d1c8255f36ba7b38086b7ea1a427703d474981e4a9eb0e3",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/other.csv"
+    },
+    {
+      "file": "requiring.txt",
+      "bytes": 32392,
+      "sha256": "2ffcf77ac8f05f35b1dc2b36ea4e71a82cfb7eba528dab3ac27f7b4c758a1c16",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/requiring.txt"
+    },
+    {
+      "file": "series.csv",
+      "bytes": 300740,
+      "sha256": "0505ab5421031ed4740133839782fa107ad5817ab4fd833cbeb8824de74652da",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/series.csv"
+    },
+    {
+      "file": "setting.csv",
+      "bytes": 15374,
+      "sha256": "339f6555286f4fc1e73495ff800ffb74d11ffc0f6a7dfcce0301006c284bc6eb",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/setting.csv"
+    },
+    {
+      "file": "style.csv",
+      "bytes": 5362,
+      "sha256": "c459a4eb9c31f9932b96d5176670c5f9e931dbd8a51893c4a667f6933c1fcbd4",
+      "url": "https://huggingface.co/datasets/Jio7/danbooru-tags-classified/resolve/90da0a2bc51724d2b28aef1f3f2a422663a2ede3/style.csv"
+    }
+  ]
+}

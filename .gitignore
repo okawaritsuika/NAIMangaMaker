@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+build/
+dist/
+*.spec
+*.log
+keys.json
+workspace.json
+preferences.json
+stories/
+updates/
+.env

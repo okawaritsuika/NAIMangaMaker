@@ -1,0 +1,4 @@
+* text=auto
+assets/tags/* -text
+*.png binary
+*.ico binary
