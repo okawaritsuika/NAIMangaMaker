@@ -88,7 +88,7 @@ function renderPages(){
     if(page.stale)card.append(el('p','stale','컷이나 구성이 바뀌어 이전 그림과 다릅니다. 현재 내용으로 다시 그려 주세요. 이전 그림 버전은 보존됩니다.'));
     if(page.error)card.append(el('p','page-error',page.error));const actions=el('div','page-actions'),statusNames={draft:'구성 완료',rendered:'그림 생성 완료',failed:'생성 확인 필요'};
     actions.append(el('span','page-meta',statusNames[page.status]||'구성 완료'));const button=el('button','primary small','생성');button.type='button';button.dataset.renderPage=page.id;button.dataset.mutating='';button.addEventListener('click',()=>startRender(page));button.title=page.image_url?'새 시드로 다시 그리기':'이 페이지 그림 생성';const headActions=el('div','page-heading-actions');headActions.append(button,deleteAction('삭제',()=>mutate(projectPath()+'/pages/'+encodeURIComponent(page.id)+'/delete',{},'페이지를 삭제한 페이지 목록으로 옮겼습니다.')));head.append(headActions);card.append(actions);
-    const tools=el('div','page-tools'),studio=el('a','hint','이미지 편집실에서 열기');studio.href='/image-editor?project='+encodeURIComponent(project.id)+'&page='+encodeURIComponent(page.id);studio.target='_blank';studio.rel='noopener';const reader=el('a','hint','이 페이지 크게 보기');reader.href='/reader?project='+encodeURIComponent(project.id)+'&page='+encodeURIComponent(page.id);reader.target='_blank';reader.rel='noopener';tools.append(reader,studio,pageEditor(page,index),promptEditor(page,index));card.append(tools);target.append(card);
+    const tools=el('div','page-tools'),studio=el('a','hint','이미지 편집실에서 열기');studio.href='/image-editor?project='+encodeURIComponent(project.id)+'&page='+encodeURIComponent(page.id);studio.target='_blank';studio.rel='noopener';tools.append(studio,pageEditor(page,index),promptEditor(page,index));card.append(tools);target.append(card);
   });
 }
 function pageEditor(page,index){

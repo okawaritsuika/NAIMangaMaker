@@ -53,7 +53,7 @@ class Handler(BaseHTTPRequestHandler):
         return not mutation or self.headers.get('X-NAIMangaMaker') == '1'
     def do_GET(self):
         if not self.allowed(): return self.reply(403, {'error':'접근할 수 없습니다.'})
-        view={'/library':'library.html','/prompts':'prompts.html','/reader':'reader.html','/image-editor':'image-editor.html','/image_cost_ui.js':'image_cost_ui.js'}.get(urlsplit(self.path).path)
+        view={'/library':'library.html','/prompts':'prompts.html','/image-editor':'image-editor.html','/image_cost_ui.js':'image_cost_ui.js'}.get(urlsplit(self.path).path)
         if view:return self.reply(200,(ROOT/'web'/view).read_bytes(),'text/javascript; charset=utf-8' if view.endswith('.js') else 'text/html; charset=utf-8')
         if self.path == '/api/prompts/choices':
             from engine import prompt_management
