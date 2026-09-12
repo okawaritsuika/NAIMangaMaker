@@ -42,6 +42,8 @@ python remote.py
 
 다음 버전을 배포할 때는 `app_version.py`의 버전을 변경하고 `v숫자.숫자.숫자` 태그의 GitHub 릴리스에 동일한 이름의 EXE를 첨부하세요. GitHub가 제공하는 asset SHA-256 값으로 검증합니다.
 
+빌드 리소스는 `release_resources.json`에 명시된 파일만 포함합니다. 폴더를 통째로 넣지 않으므로 실행 중 생긴 개인 데이터나 캐시는 포함되지 않습니다. 새 배포 리소스를 추가할 때는 이 목록도 검토해 갱신하세요. 전체 자동 테스트는 `python -m unittest discover`로 실행합니다.
+
 ## 포함 자료
 
 태그: [Jio7/danbooru-tags-classified](https://huggingface.co/datasets/Jio7/danbooru-tags-classified). 원본 191,110개 태그를 보존하고 작가·캐릭터·작품 분류를 제외한 37,697개에 한국어 뜻을 제공합니다. 한국어로 검색해도 선택하면 영어 태그가 입력됩니다. 번역 사전은 EXE에 포함되며 검색할 때 외부 번역 서비스를 호출하지 않습니다. 희귀 고유명은 음역이 포함되며 공식 용어집은 아닙니다.

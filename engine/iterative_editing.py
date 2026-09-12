@@ -224,8 +224,16 @@ class EditMixin(RenderingMixin):
         index, panel = _panel(project, panel_id)
         if any(panel_id in page['panel_ids'] for page in project['pages']):
             raise ValueError('페이지에 담긴 컷은 페이지 구성에서 먼저 빼 주세요.')
+        archived = project.setdefault('deleted_panels', {})
+        previous_id = next((key for key, record in reversed(list(archived.items()))
+                            if record.get('next_id') == panel_id),
+                           project['panels'][index-1]['id'] if index else None)
+        next_id = next((key for key, record in reversed(list(archived.items()))
+                        if record.get('previous_id') == panel_id),
+                       project['panels'][index+1]['id'] if index+1 < len(project['panels']) else None)
         project.setdefault('deleted_panels', {})[panel_id] = dict(
-            panel=panel, index=index, deleted_at=now())
+            panel=panel, index=index, deleted_at=now(),
+            previous_id=previous_id, next_id=next_id)
         project['panels'].pop(index)
         project['revision'] += 1
         self.commit(project)
@@ -236,6 +244,12 @@ class EditMixin(RenderingMixin):
         project = self.load(project_id)
         page = _page(project, page_id)
         page['deleted_index'] = project['pages'].index(page)
+        at = page['deleted_index']
+        deleted = project.get('deleted_pages', [])
+        page['deleted_previous_id'] = next((row['id'] for row in reversed(deleted)
+            if row.get('deleted_next_id') == page_id), project['pages'][at-1]['id'] if at else None)
+        page['deleted_next_id'] = next((row['id'] for row in reversed(deleted)
+            if row.get('deleted_previous_id') == page_id), project['pages'][at+1]['id'] if at+1 < len(project['pages']) else None)
         page['deleted_at'] = now()
         project['pages'].remove(page)
         project.setdefault('deleted_pages', []).append(page)
@@ -254,10 +268,23 @@ class EditMixin(RenderingMixin):
         missing = [panel_id for panel_id in page['panel_ids'] if panel_id not in active]
         if any(panel_id not in archived for panel_id in missing):
             raise ValueError('복원할 페이지의 컷 원문을 찾을 수 없어요.')
-        for panel_id in sorted(missing, key=lambda key: archived[key]['index']):
+        for panel_id in sorted(missing, key=lambda key: archived[key].get('deleted_at', ''), reverse=True):
             record = archived.pop(panel_id)
-            project['panels'].insert(min(record['index'], len(project['panels'])), record['panel'])
+            ids = [panel['id'] for panel in project['panels']]
+            if record.get('next_id') in ids:
+                at = ids.index(record['next_id'])
+            elif record.get('previous_id') in ids:
+                at = ids.index(record['previous_id']) + 1
+            else:
+                at = min(record['index'], len(ids))
+            project['panels'].insert(at, record['panel'])
         at = min(page.pop('deleted_index', len(project['pages'])), len(project['pages']))
+        ids = [row['id'] for row in project['pages']]
+        previous_id, next_id = page.pop('deleted_previous_id', None), page.pop('deleted_next_id', None)
+        if next_id in ids:
+            at = ids.index(next_id)
+        elif previous_id in ids:
+            at = ids.index(previous_id) + 1
         page.pop('deleted_at', None)
         project['deleted_pages'].remove(page)
         project['pages'].insert(at, page)

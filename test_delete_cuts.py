@@ -6,6 +6,25 @@ from test_story_fixture import DemoWorkbench
 
 
 class DeleteCuts(unittest.TestCase):
+    def test_multiple_deleted_cuts_restore_in_original_order(self):
+        for separate in (False, True):
+            with self.subTest(separate=separate), tempfile.TemporaryDirectory() as folder:
+                wb = DemoWorkbench(Path(folder))
+                project = wb.create(dict(seed='A gardener plants flowers', count=2))
+                original = copy.deepcopy(project['panels'])
+                ids = [panel['id'] for panel in original]
+                for group in ([[ids[0]], [ids[1]]] if separate else [ids]):
+                    project = wb.page(project['id'], dict(panel_ids=group))
+                pages = [page['id'] for page in project['pages']]
+                for page in pages:
+                    wb.delete_page(project['id'], page)
+                for panel in ids:
+                    wb.delete_panel(project['id'], panel)
+                for page in pages:
+                    project = wb.restore_page(project['id'], page)
+                self.assertEqual(project['panels'], original)
+                self.assertEqual([page['id'] for page in project['pages']], pages)
+
     def test_unassigned_cut_deletion_is_persistent_and_preserves_other_cuts(self):
         with tempfile.TemporaryDirectory() as folder:
             wb = DemoWorkbench(Path(folder))

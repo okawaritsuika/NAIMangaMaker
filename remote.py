@@ -146,6 +146,11 @@ class Remote(tk.Tk):
     ACCENT = '#24694f'
 
     def __init__(self):
+        # Give the packaged launcher its own taskbar identity before creating a window.
+        shell = c.WinDLL('shell32')
+        shell.SetCurrentProcessExplicitAppUserModelID.argtypes = [w.LPCWSTR]
+        shell.SetCurrentProcessExplicitAppUserModelID.restype = c.c_long
+        shell.SetCurrentProcessExplicitAppUserModelID('NAIMangaMaker.Desktop')
         super().__init__()
         self.title('NAIMangaMaker')
         self.iconbitmap(default=str(ASSETS / 'app.ico'))
