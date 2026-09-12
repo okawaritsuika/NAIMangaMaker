@@ -479,12 +479,21 @@ Keep each panel's primary actor, described acting person, dialogue speaker and c
         layout = payload.get('layout', 'auto')
         if layout not in ('auto', 'top', 'middle', 'bottom'):
             raise ValueError('컷 배치를 선택해 주세요.')
-        project['pages'].append(dict(id=identity('g'), title=f'{len(project["pages"])+1}페이지',
-                                     panel_ids=ordered, layout=layout, status='draft', renders=[]))
+        before_id = payload.get('before_page_id')
+        at = len(project['pages'])
+        if before_id is not None:
+            at = next((i for i, page in enumerate(project['pages']) if page['id'] == before_id), None)
+            if at is None:
+                raise ValueError('앞에 추가할 기준 페이지를 찾을 수 없어요. 페이지를 다시 선택해 주세요.')
+        new_page = dict(id=identity('g'), title=f'{at+1}페이지',
+                        panel_ids=ordered, layout=layout, status='draft', renders=[])
+        project['pages'].insert(at, new_page)
+        for index, page in enumerate(project['pages'], 1):
+            page['title'] = f'{index}페이지'
         from .image_preferences import path as image_defaults_path, load as image_defaults
         if image_defaults_path(self).exists():
             prefs = image_defaults(self)
-            project['pages'][-1].update(image_settings=prefs, width=prefs['width'], height=prefs['height'])
+            new_page.update(image_settings=prefs, width=prefs['width'], height=prefs['height'])
         project['revision'] += 1
         self.commit(project)
         return project

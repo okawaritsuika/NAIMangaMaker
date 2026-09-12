@@ -7,11 +7,12 @@ const projectPath=()=>'/api/story/projects/'+state.project.id,isBusy=()=>state.b
 function notify(message){document.dispatchEvent(new CustomEvent('job-message',{detail:message}));$('middleMessage').textContent=message;if($('batchStatus'))$('batchStatus').textContent=message}
 function updateControls(){document.querySelectorAll('#expandDialog [data-mutating],#pagePreview [data-mutating],#storyOutput [data-mutating],#composeSelected,#storyList input[type=checkbox],#storyList input[type=radio]').forEach(n=>n.disabled=isBusy()||n.dataset.retryable==='no');if($('generateAll'))$('generateAll').disabled=isBusy()||!state.project?.pages.some(p=>!p.image_url||p.stale);updateSelectionRemote();document.dispatchEvent(new CustomEvent('middle-busy',{detail:state.busy}))}
 function updateSelection(){const ordered=state.project.panels.filter(p=>state.selected.has(p.id));document.querySelectorAll('[data-panel-select]').forEach(n=>{n.checked=state.selected.has(n.dataset.panelSelect);n.closest('.story-card').classList.toggle('selected',n.checked)});$('composeSelected').disabled=isBusy()||!ordered.length;updateSelectionRemote();saveSelection()}
-function composeSelection(){
+function composeSelection(beforePageId=null){
   if(isBusy()||!state.project)return;
   const ids=state.project.panels.filter(panel=>state.selected.has(panel.id)).map(panel=>panel.id);
   if(!ids.length)return;
-  return launchJob(projectPath()+'/compose',{panel_ids:ids,layout:$('selectedLayout').value},'선택한 컷으로 맨 뒤에 페이지를 추가하고 있습니다.');
+  const placement=typeof beforePageId==='string'&&beforePageId?{before_page_id:beforePageId}:{};
+  return launchJob(projectPath()+'/compose',{panel_ids:ids,layout:$('selectedLayout').value,...placement},placement.before_page_id?'선택한 페이지 앞에 새 페이지를 추가하고 있습니다.':'선택한 컷으로 맨 뒤에 페이지를 추가하고 있습니다.');
 }
 function updateSelectionRemote(){
   if(!state.project||!$('selectedLayout'))return;
@@ -23,12 +24,24 @@ function updateSelectionRemote(){
     layout.onchange=()=>{$('selectedLayout').value=layout.value;};
     const clear=action('선택 해제',()=>{state.selected.clear();updateSelection();});clear.id='remoteClearSelection';
     const add=action('맨 뒤에 페이지 추가',composeSelection,{primary:true});add.id='remoteComposeSelection';
-    bar.append(count,layout,clear,add);document.body.append(bar);
+    const target=el('select');target.id='remoteBeforePage';target.setAttribute('aria-label','앞에 추가할 기준 페이지');
+    const before=action('앞에 페이지 추가',()=>composeSelection(target.value),{primary:true});before.id='remoteComposeBefore';
+    bar.append(count,layout,clear,target,before,add);document.body.append(bar);
   }
   const count=state.project.panels.filter(panel=>state.selected.has(panel.id)).length;
   bar.hidden=!count;document.body.classList.toggle('has-selection-remote',!!count);
   $('remoteSelectionCount').textContent=count+'컷 선택';
   $('remoteSelectionLayout').value=$('selectedLayout').value;
+  const target=$('remoteBeforePage'),pages=state.project.pages;
+  const signature=JSON.stringify([state.project.id,pages.map(page=>page.id),[...state.selected]]);
+  if(target.dataset.signature!==signature){
+    target.replaceChildren(...pages.map((page,index)=>{const option=el('option','',(index+1)+'페이지 앞');option.value=page.id;return option;}));
+    const last=Math.max(-1,...state.project.panels.map((panel,index)=>state.selected.has(panel.id)?index:-1));
+    const following=pages.find(page=>page.panel_ids.some(id=>state.project.panels.findIndex(panel=>panel.id===id)>last));
+    if(following)target.value=following.id;
+    target.dataset.signature=signature;
+  }
+  target.hidden=!pages.length;$('remoteComposeBefore').hidden=!pages.length;
   bar.querySelectorAll('button,select').forEach(node=>node.disabled=isBusy());
   $('remoteComposeSelection').textContent=isBusy()?'작업 진행 중…':'맨 뒤에 페이지 추가';
 }
