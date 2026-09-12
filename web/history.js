@@ -19,5 +19,34 @@
  document.addEventListener('job-message',()=>{clearTimeout(timer);timer=setTimeout(refresh,250)});
  document.getElementById('storyProjects').addEventListener('change',()=>{clearTimeout(timer);timer=setTimeout(refresh,50)});
  window.addEventListener('focus',refresh);
+ // Keep one short-lived notice when the latest progress message is off screen.
+ const toast=document.createElement('aside'),toastText=document.createElement('span'),dismiss=document.createElement('button');
+ toast.id='progressToast';toast.hidden=true;toast.setAttribute('aria-label','최근 진행사항');
+ toastText.setAttribute('role','status');toastText.setAttribute('aria-live','polite');
+ dismiss.type='button';dismiss.textContent='×';dismiss.setAttribute('aria-label','진행 알림 닫기');
+ toast.append(toastText,dismiss);document.body.append(toast);
+ let notice=null,noticeTimer=null,lastMessage='';
+ const sources=()=>[document.getElementById('runMessage'),latest.querySelector('article>p'),document.getElementById('middleMessage')].filter(Boolean);
+ function onScreen(node){if(!node||!node.getClientRects().length)return false;const r=node.getBoundingClientRect();return r.bottom>0&&r.top<window.innerHeight&&r.right>0&&r.left<window.innerWidth;}
+ function positionNotice(){
+  const visible=notice&&sources().some(node=>node.textContent.trim()===notice.message&&onScreen(node));
+  toast.hidden=!notice||notice.closed||Date.now()>notice.until||visible||!!document.querySelector('dialog[open]');
+ }
+ function announce(message){
+  message=String(message||'').trim();if(!message||message===lastMessage){positionNotice();return;}
+  lastMessage=message;notice={message,until:Date.now()+6500,closed:false};toastText.textContent=message;
+  clearTimeout(noticeTimer);noticeTimer=setTimeout(positionNotice,6600);positionNotice();
+ }
+ dismiss.onclick=()=>{if(notice)notice.closed=true;positionNotice();};
+ document.addEventListener('job-message',event=>announce(event.detail));
+ const progress=document.getElementById('storyProgress');
+ for(const target of [latest,progress])new MutationObserver(()=>{
+  const node=target===latest?latest.querySelector('article>p'):document.getElementById('runMessage');
+  if(!target.hidden&&node)announce(node.textContent);else positionNotice();
+ }).observe(target,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['hidden']});
+ window.addEventListener('scroll',positionNotice,{capture:true,passive:true});
+ window.addEventListener('resize',positionNotice);
+ document.addEventListener('toggle',positionNotice,true);
+ document.getElementById('storyProjects').addEventListener('change',()=>{notice=null;lastMessage='';clearTimeout(noticeTimer);positionNotice();});
  refresh();
 })();
