@@ -205,7 +205,7 @@ function panelEditor(panel,index){
   const instruction=control(reroll,'다시 요청할 내용',rDraft.instruction||''),dialogue=control(reroll,'대사 선택',rDraft.dialogue||'auto',{options:{auto:'NAI가 결정',with:'대사 넣기',none:'대사 없이'}});
   function sync(){explain.textContent=mode.value==='camera'?'행동·착장·소지품은 유지하고 같은 순간의 카메라를 바꿉니다.':'현재 장면 안에서 행동과 표현을 다르게 요청합니다. 앞뒤 컷과 이어지도록 원하는 점을 적어 주세요.';writeDraft(rerollKey,{mode:mode.value,instruction:instruction.value,dialogue:dialogue.value});}
   mode.addEventListener('change',sync);instruction.addEventListener('input',sync);dialogue.addEventListener('change',sync);explain.textContent=mode.value==='camera'?'행동·착장·소지품은 유지하고 같은 순간의 카메라를 바꿉니다.':'현재 장면 안에서 행동과 표현을 다르게 요청합니다.';
-  reroll.append(action('이 컷 다시 요청',()=>{sync();launchJob(path+'/reroll',{mode:mode.value,instruction:instruction.value,dialogue:dialogue.value},'현재 컷의 새 버전을 요청합니다. 이전 버전은 보존됩니다.');},{primary:true,auth:true}));box.append(reroll);
+  const rerollActions=el('div','actions-wrap');rerollActions.append(action('이 컷 다시 요청',()=>{sync();launchJob(path+'/reroll',{mode:mode.value,instruction:instruction.value,dialogue:dialogue.value},'현재 컷의 새 버전을 요청합니다. 이전 버전은 보존됩니다.');},{primary:true,auth:true}));reroll.append(rerollActions);box.append(reroll);
   if(Array.isArray(panel.history)&&panel.history.length){
     const history=fold('이전 컷 버전 '+panel.history.length+'개',key+'-history'),options={};panel.history.forEach((entry,i)=>{options[i]='버전 '+(i+1)+' · '+dateLabel(entry.saved_at||entry.created_at)+(entry.reason?' · '+entry.reason:'');});
     const version=control(history,'복원할 컷 버전','0',{options}),preview=el('div','version-preview');history.append(preview);
