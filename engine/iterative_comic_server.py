@@ -58,6 +58,7 @@ class App:
         for path in (self.workbench.directory / '_jobs').glob('j*.json'):
             try:
                 job = read(path)
+                job['automatic_retry_pending'] = False
                 if job.get('status') in ('queued', 'running'):
                     project = disk_project(self.workbench, job['project_id']) if job.get('project_id') else None
                     committed = project and job.get('operation_id') and project.get('_last_recovery_operation') == job['operation_id']
@@ -84,7 +85,7 @@ class App:
     def public_job(self, job):
         with self.lock:
             fields = ('id', 'status', 'kind', 'project_id', 'operation_id', 'stage', 'message',
-                      'error', 'created', 'updated', 'retry_of', 'retry_job_id', 'target_id')
+                      'error', 'created', 'updated', 'retry_of', 'retry_job_id', 'target_id', 'automatic_retry_pending')
             value = {key: job.get(key) for key in fields}
             candidate = (job.get('status') in ('failed', 'interrupted') and
                          all(key in job for key in ('operation_id', 'base_sha256', 'payload', 'kind')))
@@ -93,7 +94,7 @@ class App:
                 reason = '이 작업의 재시도가 이미 등록되었어요. 새 작업을 확인해 주세요.'
             value['retry_conflict'] = reason
             value['restartable'] = bool(candidate and not reason)
-            value['retryable'] = bool(value['restartable'] and (job.get('stage') or job['status'] == 'interrupted'))
+            value['retryable'] = value['restartable']
             folder = self.response_folder(job)
             raw = (folder / 'story.txt') if folder else None
             available = bool(folder and folder.exists() and any(folder.iterdir()))
@@ -144,7 +145,7 @@ class App:
             return result
 
     def job(self, kind, payload, project_id=None, target_id=None, *, retry=None, restart=False,
-            auto_run_id=None, auto_step_key=None):
+            auto_run_id=None, auto_step_key=None, automatic_retries=0):
         with self.lock:
             validate_job_payload(kind, payload)
             if kind not in ('create', 'expand', 'settings', 'edit_panel', 'reroll_panel', 'render', 'direct', 'compose','studio_render','add_page'):
@@ -170,7 +171,7 @@ class App:
                 status='queued', message='요청을 준비하고 있어요.', error=None, stage=None,
                 created=now(), updated=now(), retry_of=retry['id'] if retry else None, restart=restart,
                 base_project=copy.deepcopy(base), base_revision=base.get('revision') if base else None,
-                base_sha256=digest(base))
+                base_sha256=digest(base), automatic_retries=automatic_retries)
             if retry and not restart and retry.get('resume_project') is not None:
                 job['resume_project'] = copy.deepcopy(retry['resume_project'])
             if auto_run_id:
@@ -197,7 +198,8 @@ class App:
                 archive_failed_stage(self.workbench, job, automatic=automatic)
                 self.persist(job)
             return self.job(job['kind'], job['payload'], job['project_id'], job.get('target_id'), retry=job, restart=restart,
-                            auto_run_id=auto_run_id or job.get('auto_run_id'), auto_step_key=job.get('auto_step_key'))
+                            auto_run_id=auto_run_id or job.get('auto_run_id'), auto_step_key=job.get('auto_step_key'),
+                            automatic_retries=job.get('automatic_retries', 0)+1 if automatic else 0)
 
     def work(self, jid):
         job = self.jobs[jid]
@@ -249,7 +251,7 @@ class App:
                     job.update(status='complete', message='완료했어요.', project_id=project['id'],
                                result_project_sha256=digest(disk_project(wb, pid)))
             except Exception as exc:
-                message = str(exc) if isinstance(exc, (ValueError, InterruptedError, FileNotFoundError)) else '요청을 완료하지 못했어요. 받은 원문은 보존했어요.'
+                message = ('응답 JSON 형식이 올바르지 않아요. 원문을 보존했어요. ' + str(exc)) if isinstance(exc, json.JSONDecodeError) else str(exc) if isinstance(exc, (ValueError, InterruptedError, FileNotFoundError)) else '요청을 완료하지 못했어요. 받은 원문은 보존했어요.'
                 with self.lock:
                     if job['kind'] in ('render','studio_render') and session.pending is not None:
                         try:
@@ -257,9 +259,34 @@ class App:
                         except ValueError as guard_error:
                             message = str(guard_error)
                     job.update(status='failed', message=message, error=message, error_type=type(exc).__name__)
+                    job['automatic_retry_pending'] = bool(isinstance(exc,json.JSONDecodeError)
+                        and not job.get('auto_run_id') and job['kind'] not in ('render','studio_render')
+                        and job.get('automatic_retries',0)<2)
             finally:
                 with self.lock:
                     self.active.discard(job['project_id'])
+                    self.persist(job)
+
+        # AutoBooks/StoryStarts already own retries for their steps. Manual text
+        # jobs get one stage retry and one fresh operation, never image retries.
+        if (job['status'] == 'failed' and not job.get('auto_run_id')
+                and job['kind'] not in ('render', 'studio_render')
+                and job.get('error_type') == 'JSONDecodeError'
+                and job.get('automatic_retries', 0) < 2):
+            try:
+                with self.lock:
+                    restart = job.get('automatic_retries', 0) >= 1
+                    result = self.retry(jid, automatic=True, restart=restart)
+                    child = self.get_job(result['job_id'])
+                    child['message'] = 'JSON 오류로 이 요청을 처음부터 한 번 다시 시도합니다.' if restart else 'JSON 오류가 난 단계만 자동 재시도합니다.'
+                    self.persist(child)
+            except (ValueError, OSError) as exc:
+                with self.lock:
+                    job['message'] += ' 자동 재시도를 시작하지 못했어요: ' + str(exc)
+                    self.persist(job)
+            finally:
+                with self.lock:
+                    job['automatic_retry_pending'] = False
                     self.persist(job)
 
     def mutation(self, pid, method, *args):

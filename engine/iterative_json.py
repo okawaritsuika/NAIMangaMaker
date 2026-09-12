@@ -38,7 +38,7 @@ def parse_object(raw):
                 raise original
             return end
 
-        def value(i, depth=0):
+        def value(i, depth=0, ancestors=()):
             if depth > 100 or i >= len(candidate):
                 raise original
             if candidate[i] not in '{[':
@@ -55,12 +55,19 @@ def parse_object(raw):
                     if i >= len(candidate) or candidate[i] != ':':
                         raise original
                     i = space(i + 1)
-                end = value(i, depth + 1)
+                end = value(i, depth + 1, ancestors + (closing,))
                 i = space(end)
                 if i >= len(candidate):
                     raise original
                 if candidate[i] == closing:
                     return i + 1
+                # An explicit ancestor closer proves this inner container ended.
+                # Do not close at EOF or invent missing values/member names.
+                if candidate[i] in '}]' and candidate[i] in ancestors:
+                    if len(edits) >= 32:
+                        raise original
+                    edits.append(dict(offset=i, insert=closing))
+                    return i
                 if candidate[i] == ',':
                     i = space(i + 1)
                     continue
@@ -83,7 +90,7 @@ def parse_object(raw):
                 raise original
             repaired = candidate
             for edit in sorted(edits, key=lambda row: row['offset'], reverse=True):
-                repaired = repaired[:edit['offset']] + ',' + repaired[edit['offset']:]
+                repaired = repaired[:edit['offset']] + edit['insert'] + repaired[edit['offset']:]
             obj = decoder.decode(repaired)
             candidate = repaired
         except (json.JSONDecodeError, RecursionError):
@@ -99,7 +106,7 @@ def json_object(raw, *, audit_folder=None):
         folder = Path(audit_folder)
         folder.mkdir(parents=True, exist_ok=True)
         (folder / 'syntax_repaired.txt').write_text(candidate, encoding='utf-8')
-        audit = dict(kind='missing_json_commas', source_sha256=hashlib.sha256(raw.encode('utf-8')).hexdigest(),
+        audit = dict(kind='missing_json_commas' if all(e['insert']==',' for e in edits) else 'missing_json_delimiters', source_sha256=hashlib.sha256(raw.encode('utf-8')).hexdigest(),
                      offsets_relative_to='trimmed JSON after optional Markdown fence removal',
                      insertions=edits, repaired_file='syntax_repaired.txt')
         (folder / 'syntax_repair.json').write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding='utf-8')
