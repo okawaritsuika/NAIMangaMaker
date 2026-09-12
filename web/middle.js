@@ -35,7 +35,7 @@ function updateSelectionRemote(){
   const target=$('remoteBeforePage'),pages=state.project.pages;
   const signature=JSON.stringify([state.project.id,pages.map(page=>page.id),[...state.selected]]);
   if(target.dataset.signature!==signature){
-    target.replaceChildren(...pages.map((page,index)=>{const option=el('option','',(index+1)+'페이지 앞');option.value=page.id;return option;}));
+    target.replaceChildren(...pages.map((page,index)=>{const option=el('option','',(index+1)+'페이지');option.value=page.id;return option;}));
     const last=Math.max(-1,...state.project.panels.map((panel,index)=>state.selected.has(panel.id)?index:-1));
     const following=pages.find(page=>page.panel_ids.some(id=>state.project.panels.findIndex(panel=>panel.id===id)>last));
     if(following)target.value=following.id;
