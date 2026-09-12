@@ -141,10 +141,10 @@ class Workbench(EditMixin):
         save(folder / 'input_en.json', result)
         return result
 
-    def controls(self, data):
+    def controls(self, data, unlimited=False):
         count = data.get('count', 1)
-        if type(count) is not int or count not in (1, 2):
-            raise ValueError('한 번에 만들 컷은 1개 또는 2개를 선택해 주세요.')
+        if type(count) is not int or count < 1 or (not unlimited and count not in (1, 2)):
+            raise ValueError('추가 컷 수는 1 이상의 정수로 입력해 주세요.' if unlimited else '한 번에 만들 컷은 1개 또는 2개를 선택해 주세요.')
         mode = data.get('dialogue', 'auto')
         if mode not in DIALOGUE:
             raise ValueError('대사 방식을 선택해 주세요.')
@@ -186,7 +186,7 @@ class Workbench(EditMixin):
         panels = prepared.get('panels')
         if panels is None and isinstance(prepared.get('panel'), dict):
             panels = [prepared['panel']]
-        if not isinstance(panels, list) or len(panels) not in (1, 2) or not all(isinstance(p, dict) for p in panels):
+        if not isinstance(panels, list) or not panels or not all(isinstance(p, dict) for p in panels):
             raise ValueError('상태를 정리할 컷을 확인하지 못했어요. 원문은 보존했어요.')
         aliases = {}
         for actor, details in cast.items():
@@ -517,7 +517,7 @@ Keep each panel's primary actor, described acting person, dialogue speaker and c
     def expand(self, project_id, payload, progress=lambda _: None):
         project = self.load(project_id)
         project['generation_options'] = options(payload.get('generation_options'), options(project.get('generation_options')))
-        count, mode = self.controls(payload)
+        count, mode = self.controls(payload, unlimited=True)
         intent, position = payload.get('intent', 'story'), payload.get('position', 'after')
         if intent not in INTENT or position not in ('before', 'after'):
             raise ValueError('추가 위치와 방식을 선택해 주세요.')

@@ -169,7 +169,7 @@ async function openExpand(panelId){
  form.append(el('p','expand-anchor',(index+1)+'컷 기준 · '+(panel.description_ko||panel.description||'')));
  const pair=el('div','two');form.append(pair);
  const position=control(pair,'추가 위치',draft.position||'after',{options:{after:'기준 컷 뒤',before:'기준 컷 앞'}});
- const count=control(pair,'추가 컷 수',draft.count||1,{options:{1:'1컷',2:'2컷'}});
+ const count=control(pair,'추가 컷 수',draft.count||1,{kind:'input',required:true});count.type='number';count.min='1';count.step='1';delete count.dataset.tagInput;
  form.append(el('p','hint','기존 컷은 유지하고 선택한 컷의 앞이나 뒤에 새 컷을 삽입합니다. 같은 위치에서 반복할 수 있습니다.'));
  const intent=control(form,'어떤 내용으로 늘릴까요?',draft.custom_profile_id?'preset:'+draft.custom_profile_id:draft.intent||'action',{options:{story:'이야기 진행 · 새 사건',dialogue:'대화 · 말과 반응',action:'행동 연결 · 준비와 과정',emphasis:'강조 · 직전·직후 동작, 다른 각도',...Object.fromEntries(customChoices.map(row=>['preset:'+row.id,'내 프롬프트 · '+row.title]))}});
  if(!intent.value)intent.value='action';

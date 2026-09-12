@@ -28,8 +28,8 @@ def validate_job_payload(kind, payload):
             continue
         if field in payload and not isinstance(payload[field], str):
             raise ValueError(field + ' 값은 문자열이어야 해요.')
-    if 'count' in payload and (type(payload['count']) is not int or payload['count'] not in (range(1,6) if kind=='add_page' else (1, 2))):
-        raise ValueError('새 페이지는 1~5컷을 선택해 주세요.' if kind=='add_page' else '한 번에 만들 컷은 1개 또는 2개를 선택해 주세요.')
+    if 'count' in payload and (type(payload['count']) is not int or (payload['count'] < 1 if kind == 'expand' else payload['count'] not in (range(1,6) if kind=='add_page' else (1, 2)))):
+        raise ValueError('추가 컷 수는 1 이상의 정수로 입력해 주세요.' if kind=='expand' else '새 페이지는 1~5컷을 선택해 주세요.' if kind=='add_page' else '한 번에 만들 컷은 1개 또는 2개를 선택해 주세요.')
     if 'characters' in payload and (not isinstance(payload['characters'], list) or
                                    any(not isinstance(c, dict) for c in payload['characters'])):
         raise ValueError('인물 설정 형식을 확인해 주세요.')
