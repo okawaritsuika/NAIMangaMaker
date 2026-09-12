@@ -127,7 +127,7 @@ function control(host,label,value,{kind='textarea',options=null,rows=2,required=
   const wrapper=el('label','field',label),input=document.createElement(options?'select':kind);input.dataset.mutating='';
   if(options)for(const [key,text] of Object.entries(options)){const option=el('option','',text);option.value=key;input.append(option);}
   else{input.maxLength=kind==='textarea'?40000:5000;if(kind==='textarea')input.rows=rows;}
-  input.value=value??'';input.required=required;if(['배경','초점','거리·구도','카메라 각도','이 컷의 상태 · 착장과 소지품'].includes(label))input.dataset.tagInput='';wrapper.append(input);host.append(wrapper);return input;
+  input.value=value??'';input.required=required;if(!options&&!label.includes('시드'))input.dataset.tagInput='';wrapper.append(input);host.append(wrapper);return input;
 }
 function action(label,handler,{primary=false,auth=false}={}){const button=el('button',(primary?'primary ':'')+'small',label);button.type='button';button.dataset.mutating='';if(auth)button.dataset.auth='';button.addEventListener('click',handler);return button;}
 function dateLabel(value){if(!value)return '시간 미상';const date=new Date(value);return Number.isNaN(date.getTime())?'시간 미상':date.toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});}
