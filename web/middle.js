@@ -127,7 +127,7 @@ function pageEditor(page,index){
 }
 function promptEditor(page,index){
   const path=projectPath()+'/pages/'+encodeURIComponent(page.id),key=draftID('page-prompt',page.id),box=fold('고급 · 실제 이미지 프롬프트 편집',key),area=el('div');let loading=false,loaded=false;
-  box.append(el('p','hint','실제로 이미지에 보내는 영어 프롬프트입니다. 인물 프롬프트의 개수와 배치 위치는 유지하고 문구만 수정합니다.'),area);
+  box.append(el('p','hint','실제로 이미지에 보내는 영어 프롬프트입니다. 인물별 문구를 수정하거나 해당 컷의 인물 프롬프트를 삭제할 수 있습니다.'),area);
   async function load(){
     if(!box.open||loading||loaded||false)return;loading=true;area.replaceChildren(el('p','hint','이미지 프롬프트를 불러오는 중…'));
     try{const preview=await api(path+'/prompt');loaded=true;draw(preview);}catch(err){area.replaceChildren(el('p','job-error',errorText(err)));const retry=el('button','small','프롬프트 다시 불러오기');retry.type='button';retry.addEventListener('click',load);area.append(retry);}finally{loading=false;}
@@ -139,10 +139,11 @@ function promptEditor(page,index){
     if(compatibleDraft)area.append(el('p','draft-note','저장하지 않은 프롬프트 입력을 복원했습니다.'));
     area.append(el('p','hint','모델 '+(preview.model||'설정값')+' · '+(preview.width||'?')+' × '+(preview.height||'?')+' · 현재 시드 '+(preview.seed??'미상')));
     const form=el('form','prompt-fields'),prompt=control(form,'전체 프롬프트 · 영어',draftValue?.prompt??preview.prompt,{rows:5,required:true}),negative=control(form,'전체 제외 프롬프트 · 영어',draftValue?.negative_prompt??preview.negative_prompt,{rows:3}),captions=[];
-    (preview.characters||[]).forEach((character,i)=>{const group=el('div','prompt-caption'),number=state.project.panels.findIndex(p=>p.id===character.panel_id)+1;group.append(el('strong','hint',(number>0?number+'컷':'영역 '+(i+1))+' · '+(character.actor||'배경·사물')));
-      const cp=control(group,'영역 '+(i+1)+' 프롬프트',draftValue?.characters?.[i]?.prompt??character.prompt,{rows:4,required:true}),cn=control(group,'영역 '+(i+1)+' 제외 프롬프트',draftValue?.characters?.[i]?.negative_prompt??character.negative_prompt,{rows:2});captions.push({prompt:cp,negative:cn});form.append(group);});
+    const characters=draftValue?.characters?draftValue.characters.map((row,i)=>{const original=(preview.characters||[]).find(c=>(c.source_index??c.index)===(row.source_index??i));return original?{...original,...row}:null;}).filter(Boolean):(preview.characters||[]);
+    characters.forEach((character,i)=>{const group=el('div','prompt-caption'),number=state.project.panels.findIndex(p=>p.id===character.panel_id)+1;group.append(el('strong','hint',(number>0?number+'컷':'영역 '+(i+1))+' · '+(character.actor||'배경·사물')));
+      const cp=control(group,'영역 '+(i+1)+' 프롬프트',character.prompt,{rows:4,required:true}),cn=control(group,'영역 '+(i+1)+' 제외 프롬프트',character.negative_prompt,{rows:2});const entry={prompt:cp,negative:cn,source_index:character.source_index??character.index,centers:character.centers};captions.push(entry);const remove=action('이 인물 프롬프트 삭제',()=>{if(isBusy())return;captions.splice(captions.indexOf(entry),1);group.remove();persist();});remove.classList.add('danger');const removeActions=el('div','actions-wrap');removeActions.append(remove);group.append(removeActions);form.append(group);});
     const seed=control(form,'다음 그림의 시드 · 비우면 새 시드',compatibleDraft?(draft.seed??''):'',{kind:'input'});seed.inputMode='numeric';seed.placeholder='0 ~ 4294967295';
-    function overrides(){return {prompt:prompt.value,negative_prompt:negative.value,characters:captions.map(c=>({prompt:c.prompt.value,negative_prompt:c.negative.value}))};}
+    function overrides(){return {prompt:prompt.value,negative_prompt:negative.value,characters:captions.map(c=>({source_index:c.source_index,centers:c.centers,prompt:c.prompt.value,negative_prompt:c.negative.value}))};}
     function persist(){writeDraft(key,{source_sha256:preview.source_sha256,overrides:overrides(),seed:seed.value});}
     form.addEventListener('input',persist);const buttons=el('div','actions-wrap');buttons.append(action('프롬프트 저장',()=>form.requestSubmit(),{primary:true}),action('자동 프롬프트로 초기화',()=>mutate(path+'/prompt',{prompt_overrides:null},'수동 프롬프트를 초기화했습니다. 현재 컷의 자동 프롬프트를 사용합니다.',{clear:[key]})));
     buttons.append(action('작성한 프롬프트로 새 그림',()=>{if(!form.reportValidity())return;const text=seed.value.trim();if(text&&(!/^\d+$/.test(text)||Number(text)>4294967295)){notify('시드는 0부터 4294967295 사이의 정수로 입력해 주세요.',{error:true});seed.focus();return;}persist();const payload={reroll:true,prompt_overrides:overrides()};if(text)payload.seed=Number(text);startRender(page,payload);},{auth:true}));form.append(buttons);

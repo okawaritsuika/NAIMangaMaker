@@ -242,7 +242,10 @@ function renderCharacters(rows) {
   rows.forEach((row,index) => {
     const card = node('details',undefined,'character'); card.open = index === 0;
     const label = (row.name || row.actor || '배경') + (row.panel_number ? ' · '+row.panel_number+'컷' : '');
-    card.append(node('summary',(index + 1) + '. ' + label));
+    const summary=node('summary');summary.append(node('span',(index + 1) + '. ' + label));
+    const remove=node('button','삭제','danger');remove.type='button';remove.style.marginLeft='auto';remove.style.padding='4px 8px';remove.setAttribute('aria-label',label+' 인물 프롬프트 삭제');
+    remove.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(state.busy)return;const values=formValue();values.characters.splice(index,1);renderCharacters(values.characters);$('positionInfo').textContent='';controls();saveDraft();say('인물 프롬프트를 삭제했어요. 다음 미리보기 생성에 반영됩니다.');});
+    summary.style.display='flex';summary.style.alignItems='center';summary.style.gap='10px';summary.append(remove);card.append(summary);
     const positions = Array.isArray(row.centers) ? row.centers.map(center => '(' + Number(center.x).toFixed(2) + ', ' + Number(center.y).toFixed(2) + ')').join(' ') : '';
     card.append(node('p',positions ? '위치 ' + positions : '인물 슬롯과 위치는 고정됩니다.','character-meta'));
     for(const negative of [false,true]) {
@@ -281,10 +284,14 @@ function saveDraft() {
     $('draftLine').textContent = '입력 초안을 이 브라우저에 보관했어요. ' + new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
   } catch { state.storageWarning = true; $('draftLine').textContent = '브라우저 저장 공간을 사용할 수 없어 초안을 보관하지 못했어요. 이 화면의 입력은 유지됩니다.'; }
 }
+function compatibleCharacters(rows) {
+  const slots=state.studio?.character_slots||state.base.characters;
+  return rows.every(row=>{const index=row.source_index??row.index;const slot=slots.find((candidate,i)=>(candidate.source_index??candidate.index??i)===index);return slot&&slot.actor===row.actor&&slot.panel_id===row.panel_id;});
+}
 function recoverDraft() {
   const draft = readDraft();
   if(!draft || draft.version !== 1 || !draft.form || !Array.isArray(draft.form.characters)) return;
-  if(!settingsMode && (draft.form.characters.length !== state.base.characters.length || draft.form.characters.some((row,index) => row.actor !== state.base.characters[index].actor || row.panel_id !== state.base.characters[index].panel_id))) {
+  if(!settingsMode && !compatibleCharacters(draft.form.characters)) {
     try { localStorage.setItem(draftKey() + ':previous-layout:' + (draft.updated || 'unknown'),JSON.stringify(draft)); } catch { state.storageWarning = true; }
     $('draftWarning').hidden = false; $('draftWarning').textContent = state.storageWarning ? '인물 구성이 바뀌어 이전 초안을 자동으로 불러오지 않았어요. 브라우저 저장 공간에도 접근하지 못했습니다.' : '인물 구성이 바뀌어 이전 초안을 자동으로 불러오지 않았어요. 이전 구성의 초안은 브라우저에 별도로 보관했습니다.';
     state.pending = draft.pending || null; return;
@@ -312,7 +319,7 @@ function renderPayload() {
   if(!value.prompt.trim() || value.characters.some(row => !row.prompt.trim())) throw new Error('전체 프롬프트와 인물별 프롬프트를 입력해 주세요.');
   let seed = null;
   if(!value.random_seed) { seed = Number(value.seed); if(value.seed.trim() === '' || !Number.isInteger(seed) || seed < 0 || seed >= 4294967296) throw new Error('고정 시드는 0부터 4294967295 사이의 정수로 입력해 주세요.'); }
-  return {source_sha256:state.source,prompt_overrides:{prompt:value.prompt,negative_prompt:value.negative_prompt,characters:value.characters.map(row => ({prompt:row.prompt,negative_prompt:row.negative_prompt,centers:row.centers}))},image_settings:settingPayload(),seed};
+  return {source_sha256:state.source,prompt_overrides:{prompt:value.prompt,negative_prompt:value.negative_prompt,characters:value.characters.map(row => ({source_index:row.source_index??row.index,prompt:row.prompt,negative_prompt:row.negative_prompt,centers:row.centers}))},image_settings:settingPayload(),seed};
 }
 function engineLabel(row) {
   return row && row.engine === 'gpt_image_edit' ? 'GPT 이미지 보정' : row && row.engine === 'novelai' ? 'NAI 원본' : '생성 결과';
@@ -516,7 +523,7 @@ $('showOriginal').addEventListener('click',() => { state.view = 'original'; rend
 $('showCandidate').addEventListener('click',() => { state.view = 'candidate'; renderPreview(); });
 $('zoomButton').addEventListener('click',() => { const zoomed = $('canvas').classList.toggle('zoom'); $('zoomButton').setAttribute('aria-pressed',String(zoomed)); $('zoomButton').textContent = zoomed ? '화면에 맞추기' : '원본 크기'; });
 $('applyButton').addEventListener('click',applyCandidate);
-$('loadCandidate').addEventListener('click',() => { const candidate = selectedCandidate(); if(state.busy || !candidate || !candidate.prompt) return; const value = candidate.prompt; const oldRows = value.characters || []; if(oldRows.length !== state.base.characters.length || oldRows.some((row,index) => row.actor !== state.base.characters[index].actor || row.panel_id !== state.base.characters[index].panel_id)) { say('이 결과의 인물 구성이 현재 페이지와 달라 설정을 자동으로 불러올 수 없어요. 현재 입력은 보존했습니다.','error'); return; } setForm({...copy(value),random_seed:false}); saveDraft(); say('선택한 결과의 프롬프트·수치·고정 시드를 입력칸에 불러왔어요. 그림을 새로 만들지는 않았습니다.'); });
+$('loadCandidate').addEventListener('click',() => { const candidate = selectedCandidate(); if(state.busy || !candidate || !candidate.prompt) return; const value = candidate.prompt; const oldRows = value.characters || []; if(!compatibleCharacters(oldRows)) { say('이 결과의 인물 구성이 현재 페이지와 달라 설정을 자동으로 불러올 수 없어요. 현재 입력은 보존했습니다.','error'); return; } setForm({...copy(value),random_seed:false}); saveDraft(); say('선택한 결과의 프롬프트·수치·고정 시드를 입력칸에 불러왔어요. 그림을 새로 만들지는 않았습니다.'); });
 $('refreshCandidates').addEventListener('click',() => { refreshStudio().then(() => say('이미지 이력을 갱신했어요. 입력 초안은 유지했습니다.')).catch(error => say(error.message,'error')); });
 $('checkProgress').addEventListener('click',async () => { $('checkProgress').disabled = true; try { if(state.pending && state.pending.job_id) await pollJob(); else if(!await recoverJobs()) { await refreshStudio(); say('현재 페이지에 연결된 생성 작업을 찾지 못했어요. 작업실 기록에서 요청 여부를 확인해 주세요. 중복 생성을 막기 위해 자동 재요청은 하지 않습니다.','error'); } } catch(error) { say(error.message,'error'); } finally { $('checkProgress').disabled = false; } });
 $('projectSelect').addEventListener('change',() => populatePages().catch(error => say(error.message,'error')));

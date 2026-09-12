@@ -38,7 +38,7 @@ def form(settings, audit):
     actors = audit['actors']
     return dict(prompt=body['input'], negative_prompt=params['negative_prompt'], model=body['model'],
         **{key: params[key] for key in ('seed','width','height','steps','scale','cfg_rescale','sampler','noise_schedule')},
-        characters=[dict(index=i, panel_id=actor['panel_id'], actor=actor['actor'],
+        characters=[dict(index=i, source_index=actor.get('source_index', i), panel_id=actor['panel_id'], actor=actor['actor'],
             prompt=positive['char_caption'], negative_prompt=negative['char_caption'], centers=positive['centers'])
             for i,(positive,negative,actor) in enumerate(zip(positives,negatives,actors))])
 
@@ -52,6 +52,7 @@ def saved_form(workbench, pid, row):
 
 
 def get(workbench, pid, gid):
+    from .iterative_page_rendering import _automatic
     project = workbench.load(pid)
     page = _page(project, gid)
     preview = workbench.preview_prompt(pid, gid)
@@ -77,7 +78,8 @@ def get(workbench, pid, gid):
             row['name'] = actor.get('name') or row.get('actor') or '배경'
     return dict(project_id=pid, page_id=gid, title=page.get('title') or gid,
         image_url=page.get('image_url'), source_sha256=source_hash(project,page),
-        prompt=preview, history=history, defaults=preferences.public(workbench), stale=bool(page.get('stale')))
+        prompt=preview, character_slots=form(*_automatic(project, page))['characters'],
+        history=history, defaults=preferences.public(workbench), stale=bool(page.get('stale')))
 
 
 def check_source(project, page, data):
@@ -98,9 +100,7 @@ def with_defaults(workbench, pid, gid, data):
     settings,audit = build_settings(project,page)
     result = form(settings,audit)
     # Loading the global style must not discard edited panel/actor prompt text.
-    if len(result['characters']) == len(current['characters']):
-        for dest, source in zip(result['characters'], current['characters']):
-            dest.update(prompt=source['prompt'],negative_prompt=source['negative_prompt'],centers=copy.deepcopy(source['centers']),name=source.get('name',''))
+    result['characters'] = copy.deepcopy(current['characters'])
     return dict(prompt=result,source_sha256=source_hash(project,_page(project,gid)))
 
 
@@ -115,7 +115,9 @@ def render(workbench,pid,gid,data,progress=lambda _:None):
         raise ValueError('편집한 프롬프트와 이미지 설정이 필요해요.')
     from .iterative_comic_render import validate_prompt_overrides
     current = workbench.preview_prompt(pid,gid)
-    prompts = validate_prompt_overrides(data['prompt_overrides'],len(current['characters']))
+    from .iterative_page_rendering import _automatic
+    automatic_settings, _ = _automatic(project, page)
+    prompts = validate_prompt_overrides(data['prompt_overrides'],len(automatic_settings['v4_prompt']['caption']['char_captions']))
     if set(data['image_settings'])-set((*preferences.NUMERIC,'sampler','noise_schedule')):
         raise ValueError('편집실 수치 설정 항목을 확인해 주세요.')
     defaults = {key:current[key] for key in (*preferences.NUMERIC,'sampler','noise_schedule')}

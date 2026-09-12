@@ -46,7 +46,7 @@ class RenderingMixin:
         positives = params['v4_prompt']['caption']['char_captions']
         negatives = params['v4_negative_prompt']['caption']['char_captions']
         return dict(prompt=body['input'], negative_prompt=params['negative_prompt'],
-            characters=[dict(index=i, panel_id=actor['panel_id'], actor=actor['actor'],
+            characters=[dict(index=i, source_index=actor.get('source_index', i), panel_id=actor['panel_id'], actor=actor['actor'],
                 prompt=positive['char_caption'], negative_prompt=negative['char_caption'],
                 centers=copy.deepcopy(positive['centers']))
                 for i, (positive, negative, actor) in enumerate(zip(positives, negatives, audit['actors']))],

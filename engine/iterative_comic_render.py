@@ -35,8 +35,14 @@ def validate_prompt_overrides(value, count):
     if not isinstance(value, dict):
         raise ValueError('Prompt overrides must be an object')
     rows = value.get('characters')
-    if not isinstance(rows, list) or len(rows) != count:
-        raise ValueError('Character prompt count must match the fixed panel/actor slots')
+    if not isinstance(rows, list) or len(rows) > count:
+        raise ValueError('인물 프롬프트 목록을 확인해 주세요.')
+    indexed = all(isinstance(row, dict) and 'source_index' in row for row in rows)
+    if not indexed and (len(rows) != count or any(isinstance(row, dict) and 'source_index' in row for row in rows)):
+        raise ValueError('남길 인물의 원래 항목 번호가 필요해요.')
+    indices = [row['source_index'] for row in rows] if indexed else list(range(count))
+    if any(type(index) is not int or not 0 <= index < count for index in indices) or len(set(indices)) != len(indices):
+        raise ValueError('인물 항목 번호가 중복되거나 올바르지 않아요.')
     def pair(row, positioned=False):
         if not isinstance(row, dict) or any(not isinstance(row.get(key), str) for key in ('prompt', 'negative_prompt')):
             raise ValueError('Each prompt and negative_prompt must be text')
@@ -52,7 +58,7 @@ def validate_prompt_overrides(value, count):
                 raise ValueError('인물 위치는 0~1 사이의 좌표여야 해요.')
             result['centers'] = copy.deepcopy(centers)
         return result
-    return dict(**pair(value), characters=[pair(row, True) for row in rows])
+    return dict(**pair(value), characters=[dict(pair(row, True), source_index=index) for row, index in zip(rows, indices)])
 
 
 def _prompt_basis(snapshot):
@@ -252,12 +258,18 @@ def build_settings(project, page, layout='auto', *, render_version=RENDER_VERSIO
         page={key: copy.deepcopy(page[key]) for key in ('id', 'panel_ids', 'layout', 'width', 'height', 'seed', 'image_settings') if key in page})
     prompt_source_sha256 = _prompt_basis(snapshot)
     overrides = page.get('prompt_overrides')
+    for index, actor in enumerate(actor_audit):
+        actor['source_index'] = index
     if overrides is not None:
         if page.get('prompt_overrides_source_sha256') != prompt_source_sha256:
             raise ValueError('Saved prompts are stale after page changes; preview and save them again or reset them')
         overrides = validate_prompt_overrides(overrides, len(positives))
         settings['prompt'] = settings['v4_prompt']['caption']['base_caption'] = overrides['prompt']
         settings['uc'] = settings['v4_negative_prompt']['caption']['base_caption'] = overrides['negative_prompt']
+        indices = [row['source_index'] for row in overrides['characters']]
+        positives[:] = [positives[index] for index in indices]
+        negatives[:] = [negatives[index] for index in indices]
+        actor_audit[:] = [actor_audit[index] for index in indices]
         for index, row in enumerate(overrides['characters']):
             positives[index]['char_caption'] = row['prompt']
             negatives[index]['char_caption'] = row['negative_prompt']
