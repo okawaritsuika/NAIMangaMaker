@@ -302,7 +302,7 @@ class EditMixin(RenderingMixin):
         if type(index) is not int or not 0 <= index < len(versions):
             raise ValueError('복원할 그림을 선택해 주세요.')
         chosen = versions[index]
-        if chosen.get('engine') == 'gpt_image_edit':
+        if chosen.get('engine') in ('gpt_image_edit','novelai_inpaint'):
             from .image_studio import apply, source_hash
             return apply(self, project_id, page_id,
                          dict(render_id=chosen['id'], source_sha256=source_hash(project, page)))

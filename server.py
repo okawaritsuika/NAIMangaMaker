@@ -53,7 +53,7 @@ class Handler(BaseHTTPRequestHandler):
         return not mutation or self.headers.get('X-NAIMangaMaker') == '1'
     def do_GET(self):
         if not self.allowed(): return self.reply(403, {'error':'접근할 수 없습니다.'})
-        view={'/library':'library.html','/prompts':'prompts.html','/image-editor':'image-editor.html','/image_cost_ui.js':'image_cost_ui.js'}.get(urlsplit(self.path).path)
+        view={'/inpaint.js':'inpaint.js','/library':'library.html','/prompts':'prompts.html','/image-editor':'image-editor.html','/image_cost_ui.js':'image_cost_ui.js'}.get(urlsplit(self.path).path)
         if view:return self.reply(200,(ROOT/'web'/view).read_bytes(),'text/javascript; charset=utf-8' if view.endswith('.js') else 'text/html; charset=utf-8')
         if self.path == '/api/prompts/choices':
             from engine import prompt_management
@@ -128,7 +128,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.allowed(True): return self.reply(403, {'error':'접근할 수 없습니다.'})
         try:
             length = int(self.headers.get('Content-Length', '0'))
-            if not 0 <= length <= (100000 if self.path.startswith(('/api/story/','/api/workspace','/api/image-settings','/api/characters','/api/prompts/')) else 16384): raise ValueError('요청이 너무 큽니다.')
+            limit = 6_000_000 if re.fullmatch(r'/api/story/projects/p[0-9a-f]{12}/pages/g[0-9a-f]{12}/studio/render',self.path) else (100000 if self.path.startswith(('/api/story/','/api/workspace','/api/image-settings','/api/characters','/api/prompts/')) else 16384)
+            if not 0 <= length <= limit: raise ValueError('요청이 너무 큽니다.')
             data = json.loads(self.rfile.read(length)) if length else {}
             if not isinstance(data, dict): raise ValueError('요청 형식을 확인해 주세요.')
             if self.path in ('/api/prompts/save','/api/prompts/reset','/api/prompts/preview','/api/prompts/preset','/api/prompts/assign') and self.command=='POST':

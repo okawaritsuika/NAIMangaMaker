@@ -68,6 +68,7 @@ def get(workbench, pid, gid):
             verification_kind=row.get('verification_kind') or ('nai_api_artifact' if row.get('original_api_png') else None),
             actual_image_dimensions=copy.deepcopy(row.get('actual_image_dimensions')),
             provenance=copy.deepcopy(row.get('provenance')))
+        item['image_sha256'] = row.get('image_sha256')
         history.append(item)
         if selected and item['prompt'] and not page.get('stale'):
             preview = item['prompt']
@@ -109,7 +110,7 @@ def render(workbench,pid,gid,data,progress=lambda _:None):
     project = workbench.load(pid)
     page = _page(project,gid)
     check_source(project,page,data)
-    if set(data)-{'source_sha256','prompt_overrides','image_settings','seed','anlas_confirmed'}:
+    if set(data)-{'source_sha256','prompt_overrides','image_settings','seed','anlas_confirmed','inpaint'}:
         raise ValueError('이미지 편집 요청 항목을 확인해 주세요.')
     if 'prompt_overrides' not in data or not isinstance(data.get('image_settings'),dict):
         raise ValueError('편집한 프롬프트와 이미지 설정이 필요해요.')
@@ -131,6 +132,9 @@ def render(workbench,pid,gid,data,progress=lambda _:None):
         if type(seed) is not int or not 0<=seed<2**32:
             raise ValueError('시드는 0~4294967295 정수여야 해요.')
         request['seed']=seed
+    if 'inpaint' in data:
+        from .image_inpaint import render
+        return render(workbench,pid,gid,request,data['inpaint'],progress)
     return render_project_page(workbench,pid,gid,progress,payload=request)
 
 

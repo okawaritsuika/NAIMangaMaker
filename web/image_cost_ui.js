@@ -7,7 +7,7 @@
     delete payload.anlas_confirmed;
     try{
       const response=await fetch('/api/story/projects/'+encodeURIComponent(project_id)+'/pages/'+encodeURIComponent(page_id)+'/image-cost',{
-        method:'POST',headers:{'Content-Type':'application/json','X-NAIMangaMaker':'1'},body:JSON.stringify(payload)});
+        method:'POST',headers:{'Content-Type':'application/json','X-NAIMangaMaker':'1'},body:JSON.stringify({image_settings:payload.image_settings})});
       const result=await response.json();
       if(!response.ok)throw new Error(result.error||'생성 비용을 확인하지 못했어요.');
       if(!result.can_generate){await notice(result,false);return false;}

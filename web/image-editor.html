@@ -153,12 +153,13 @@ function summary(state){
 }
 $('mode').onchange=()=>{$('pool').hidden=$('mode').value!=='balanced'};
 api('/api/keys').then(render).catch(()=>{$('connection').textContent='키 정보를 확인하지 못했습니다. 설정을 열어 주세요.'});
-</script><script src="/image_cost_ui.js"></script><script src="/tags.js"></script><script>(()=>{
+</script><script src="/image_cost_ui.js"></script><script src="/inpaint.js"></script><script src="/tags.js"></script><script>(()=>{
 'use strict';
 const $ = id => document.getElementById(id);
 const query = new URLSearchParams(location.search);
 const lastEditorKey = 'naimanga-last-image-editor-v1';
 let restoredEditor = false;
+let inpaintEditor = null;
 if(!query.has('project') && !query.has('page')) {
   try { const saved=JSON.parse(localStorage.getItem(lastEditorKey)||'null');if(saved && /^p[a-f0-9]+$/.test(saved.projectId) && /^g[a-f0-9]+$/.test(saved.pageId)){query.set('project',saved.projectId);query.set('page',saved.pageId);restoredEditor=true;} } catch {}
 }
@@ -187,6 +188,9 @@ async function api(path, body) {
   return data;
 }
 function controls() {
+  inpaintEditor?.update();
+  for(const id of ['width','height','resolutionPreset','noise_schedule']) $(id).disabled=Boolean(inpaintEditor?.active);
+  if(inpaintEditor?.active) { const size=inpaintEditor.size();$('width').value=size.width;$('height').value=size.height;$('noise_schedule').value='karras'; }
   updateResolution();
   drawPositions();
   $('formFields').disabled = !state.ready || state.busy;
@@ -199,7 +203,7 @@ function controls() {
   $('applyButton').disabled = state.busy || !goodImage(candidate) || Boolean(candidate && (candidate.selected || candidate.verified === false));
   $('loadCandidate').disabled = state.busy || !candidate || !candidate.prompt;
   $('showCandidate').disabled = !goodImage(candidate);
-  $('submitButton').textContent = state.busy ? (settingsMode ? '저장 중…' : '작업 진행 중…') : (settingsMode ? '기본 설정 저장' : '미리보기 생성');
+  $('submitButton').textContent = state.busy ? (settingsMode ? '저장 중…' : '작업 진행 중…') : (settingsMode ? '기본 설정 저장' : inpaintEditor?.active ? '부분 수정 미리보기 생성' : '미리보기 생성');
 }
 function updateResolution() {
   const width = Number($('width').value), height = Number($('height').value), steps = Number($('steps').value);
@@ -322,10 +326,12 @@ function renderPayload() {
   return {source_sha256:state.source,prompt_overrides:{prompt:value.prompt,negative_prompt:value.negative_prompt,characters:value.characters.map(row => ({source_index:row.source_index??row.index,prompt:row.prompt,negative_prompt:row.negative_prompt,centers:row.centers}))},image_settings:settingPayload(),seed};
 }
 function engineLabel(row) {
+  if(row?.engine === 'novelai_inpaint') return 'NAI 부분 수정';
   return row && row.engine === 'gpt_image_edit' ? 'GPT 이미지 보정' : row && row.engine === 'novelai' ? 'NAI 원본' : '생성 결과';
 }
 function renderPreview() {
   const row = state.view === 'candidate' ? selectedCandidate() : state.history.find(item => item.selected);
+  inpaintEditor?.sync();
   const imageUrl = state.view === 'candidate' ? (row && row.image_url) : (state.studio && state.studio.image_url);
   const url = safeImage(imageUrl || '');
   $('showOriginal').setAttribute('aria-pressed',String(state.view === 'original'));
@@ -399,6 +405,7 @@ async function recoverJobs() {
 async function generate() {
   if(state.busy) return;
   const renderBody = renderPayload();
+  if(inpaintEditor?.active) { renderBody.inpaint=inpaintEditor.payload(); Object.assign(renderBody.image_settings,inpaintEditor.size(),{noise_schedule:'karras'}); }
   busy(true); say('이번 이미지 요청의 비용 조건을 확인하고 있어요.','busy');
   try {
     if(!window.ImageCostUI || typeof window.ImageCostUI.confirm !== 'function') throw new Error('비용 확인 화면을 불러오지 못했어요. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
@@ -587,6 +594,15 @@ function setupEditorLayout() {
   $('previewImage').addEventListener('load',drawPositions);
 }
 setupEditorLayout();
+if(!settingsMode) inpaintEditor=window.InpaintEditor.create({stage:$('positionStage'),image:$('previewImage'),toolbar:$('positionToggle').parentElement,
+  getRow:()=>state.view==='candidate'?selectedCandidate():state.history.find(row=>row.selected),isBusy:()=>state.busy,say,
+  key:()=>draftKey()+':inpaint',onChange:active=>{
+    if(active&&positionMode)$('positionToggle').click();
+    $('positionToggle').disabled=active;
+    if(active){const image=$('previewImage');$('width').value=image.naturalWidth;$('height').value=image.naturalHeight;$('noise_schedule').value='karras';$('canvas').classList.remove('zoom');}
+    controls();
+  }});
+
 
 init().catch(error => { say(error.message + '\n최신 실험실 서버에서 이 화면을 열었는지 확인해 주세요.','error'); controls(); });
 })();</script></body></html>
