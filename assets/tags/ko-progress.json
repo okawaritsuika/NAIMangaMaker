@@ -1,0 +1,60 @@
+{
+  "updated_at": "2026-09-12T09:40:03.905678+00:00",
+  "total": 37697,
+  "translated": 37697,
+  "pending": 0,
+  "categories": {
+    "action": {
+      "total": 2500,
+      "translated": 2500
+    },
+    "attire": {
+      "total": 9646,
+      "translated": 9646
+    },
+    "count": {
+      "total": 31,
+      "translated": 31
+    },
+    "expression": {
+      "total": 285,
+      "translated": 285
+    },
+    "feature": {
+      "total": 2930,
+      "translated": 2930
+    },
+    "meme": {
+      "total": 566,
+      "translated": 566
+    },
+    "meta": {
+      "total": 520,
+      "translated": 520
+    },
+    "object": {
+      "total": 4227,
+      "translated": 4227
+    },
+    "other": {
+      "total": 15942,
+      "translated": 15942
+    },
+    "setting": {
+      "total": 893,
+      "translated": 893
+    },
+    "style": {
+      "total": 209,
+      "translated": 209
+    }
+  },
+  "method": "Korean dictionary translations authored by Codex; explicit clothing modifier rules over translated base labels",
+  "excluded_categories": [
+    "artist",
+    "character",
+    "series"
+  ],
+  "original_tags_deleted": 0,
+  "skipped_as_complete": 0
+}

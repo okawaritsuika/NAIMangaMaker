@@ -12,6 +12,7 @@ class Updates(unittest.TestCase):
         return dict(version='v1.0.1', url=updater.RELEASES_URL+'/download/v1.0.1/'+updater.ASSET_NAME,
                     sha256=hashlib.sha256(body).hexdigest(), size=len(body))
 
+    @patch.object(updater, 'VERSION', '1.0.0')
     def test_release_validation(self):
         release=self.release()
         data=dict(tag_name='v1.0.1', assets=[dict(name=updater.ASSET_NAME,

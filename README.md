@@ -24,7 +24,7 @@ NovelAI로 이야기와 만화 페이지를 만들고 편집하는 Windows용 �
 - 이야기 시작, 앞뒤 연결·동작·강조 확장 및 자동 완성
 - 페이지 구성, 이미지 생성·재생성·편집, 캐릭터 위치 조절
 - 이미지 기본값, 캐릭터, 단계별 프롬프트 관리
-- 태그 자동완성, 만화 일람 및 큰 그림 보기
+- 영어·한국어 태그 자동완성, 만화 일람 및 큰 그림 보기
 - 여러 API 키의 이야기·이미지 역할 지정 및 사용량 표시
 
 ## 소스 실행 / 빌드
@@ -44,4 +44,6 @@ python remote.py
 
 ## 포함 자료
 
-태그: [Jio7/danbooru-tags-classified](https://huggingface.co/datasets/Jio7/danbooru-tags-classified). 출처와 원본 데이터 카드는 `assets/tags`에 포함합니다. 아이콘은 프로젝트에서 도형으로 제작했습니다. 실행 환경의 라이선스는 `licenses`에 포함합니다. NovelAI 공식 제품은 아닙니다.
+태그: [Jio7/danbooru-tags-classified](https://huggingface.co/datasets/Jio7/danbooru-tags-classified). 원본 191,110개 태그를 보존하고 작가·캐릭터·작품 분류를 제외한 37,697개에 한국어 뜻을 제공합니다. 한국어로 검색해도 선택하면 영어 태그가 입력됩니다. 번역 사전은 EXE에 포함되며 검색할 때 외부 번역 서비스를 호출하지 않습니다. 희귀 고유명은 음역이 포함되며 공식 용어집은 아닙니다.
+
+출처와 원본 데이터 카드는 `assets/tags`에 포함합니다. 아이콘은 프로젝트에서 도형으로 제작했습니다. 실행 환경의 라이선스는 `licenses`에 포함합니다. NovelAI 공식 제품은 아닙니다.
