@@ -363,13 +363,18 @@ if __name__ == '__main__':
         except Exception as error:
             c.windll.user32.MessageBoxW(None,str(error)+'\n기존 EXE 또는 .previous.exe로 다시 실행할 수 있습니다.','NAIMangaMaker 업데이트',0x10)
     elif '--diagnostics' in sys.argv:
-        from tag_catalog import catalog
-        from engine.image_preferences import original_defaults
-        root=Remote();root.withdraw();root.update_idletasks()
         output=Path(sys.argv[sys.argv.index('--diagnostics')+1])
-        output.write_text(json.dumps(dict(version=VERSION,tags=len(catalog()),defaults=original_defaults(),
-            ui_height=root.winfo_reqheight(),icon_present=(ASSETS/'app.ico').exists()),ensure_ascii=False),encoding='utf-8')
-        root.after_cancel(root.timer);root.destroy()
+        try:
+            from tag_catalog import catalog
+            from engine.image_preferences import original_defaults
+            root=Remote();root.withdraw();root.update_idletasks()
+            output.write_text(json.dumps(dict(version=VERSION,tags=len(catalog()),defaults=original_defaults(),
+                ui_height=root.winfo_reqheight(),icon_present=(ASSETS/'app.ico').exists()),ensure_ascii=False),encoding='utf-8')
+            root.after_cancel(root.timer);root.destroy()
+        except Exception:
+            import traceback
+            output.write_text(json.dumps(dict(version=VERSION,error=traceback.format_exc()),ensure_ascii=False),encoding='utf-8')
+            raise SystemExit(1)
     elif '--server' in sys.argv:
         from server import serve
         import argparse

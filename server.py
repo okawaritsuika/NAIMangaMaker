@@ -128,7 +128,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self.allowed(True): return self.reply(403, {'error':'접근할 수 없습니다.'})
         try:
             length = int(self.headers.get('Content-Length', '0'))
-            limit = 6_000_000 if re.fullmatch(r'/api/story/projects/p[0-9a-f]{12}/pages/g[0-9a-f]{12}/studio/render',self.path) else (100000 if self.path.startswith(('/api/story/','/api/workspace','/api/image-settings','/api/characters','/api/prompts/')) else 16384)
+            limit = 400000 if self.path.startswith('/api/image-styles') else 6_000_000 if re.fullmatch(r'/api/story/projects/p[0-9a-f]{12}/pages/g[0-9a-f]{12}/studio/render',self.path) else (100000 if self.path.startswith(('/api/story/','/api/workspace','/api/image-settings','/api/characters','/api/prompts/')) else 16384)
             if not 0 <= length <= limit: raise ValueError('요청이 너무 큽니다.')
             data = json.loads(self.rfile.read(length)) if length else {}
             if not isinstance(data, dict): raise ValueError('요청 형식을 확인해 주세요.')
@@ -148,6 +148,17 @@ class Handler(BaseHTTPRequestHandler):
                 from engine import image_preferences
                 app=self.server.stories()
                 with app.lock:return self.reply(200,image_preferences.store(app.workbench,data))
+            if self.path=='/api/image-styles' and self.command=='POST':
+                from engine import image_preferences
+                app=self.server.stories()
+                with app.lock:return self.reply(200,image_preferences.save_style(app.workbench,data))
+            match=re.fullmatch(r'/api/image-styles/(st[0-9a-f]{12})/delete',self.path)
+            if match and self.command=='POST':
+                if data!={'confirmed':True} or type(data.get('confirmed')) is not bool:
+                    raise ValueError('그림체 삭제를 확인해 주세요.')
+                from engine import image_preferences
+                app=self.server.stories()
+                with app.lock:return self.reply(200,image_preferences.delete_style(app.workbench,match[1]))
             if self.path=='/api/workspace/draft' and self.command=='POST':
                 with self.server.story_lock:
                     path=self.server.data_dir/'workspace.json';path.parent.mkdir(parents=True,exist_ok=True)

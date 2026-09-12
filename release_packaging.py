@@ -26,6 +26,9 @@ def resource_args(root=ROOT):
 
 
 if __name__ == '__main__':
+    import tkinter
+    # Fail before packaging if the remote controller's GUI runtime is unavailable.
+    tkinter.Tcl()
     from PyInstaller.__main__ import run
     run(['--noconfirm', '--clean', '--onefile', '--windowed', '--name', 'NAIMangaMaker',
          '--icon', 'assets/app.ico', '--hidden-import', 'server', '--collect-submodules', 'engine',

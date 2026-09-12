@@ -22,7 +22,8 @@ REFERENCE = Path(__file__).resolve().parent / 'reference_settings.json'
 LAYOUTS = {'auto', 'top', 'middle', 'bottom'}
 EXCLUSIONS = 'inset panel, extra panels, empty panel, split panel, zoom layer, duplicate panel'
 TEXT_EXCLUSIONS = 'text, speech bubble, thought bubble, caption, lettering, sound effects'
-RENDER_VERSION = 'single_view_v3'
+RENDER_VERSION = 'style_first_v4'
+SINGLE_VIEW_RENDER_VERSION = 'single_view_v3'
 PREVIOUS_RENDER_VERSION = 'panel_background_v2'
 LEGACY_RENDER_VERSION = 'legacy_global_setting_v1'
 
@@ -143,7 +144,7 @@ def _layout(panels, requested, width, height):
 
 
 def build_settings(project, page, layout='auto', *, render_version=RENDER_VERSION):
-    if render_version not in {RENDER_VERSION, PREVIOUS_RENDER_VERSION, LEGACY_RENDER_VERSION}:
+    if render_version not in {RENDER_VERSION, SINGLE_VIEW_RENDER_VERSION, PREVIOUS_RENDER_VERSION, LEGACY_RENDER_VERSION}:
         raise ValueError('Unsupported saved render version')
     panels = _selected(project, page)
     requested = page.get('layout', 'auto') if layout == 'auto' else layout
@@ -172,10 +173,16 @@ def build_settings(project, page, layout='auto', *, render_version=RENDER_VERSIO
         style = image_settings['style_prompt']
     count = len(panels)
     structure = (f'2::comic page, exactly {count} ' + ('panel' if count == 1 else 'panels') + ', ' + words + ', clear panel borders::')
-    single_view = count == 1 and render_version == RENDER_VERSION
+    single_view = count == 1 and render_version in {RENDER_VERSION, SINGLE_VIEW_RENDER_VERSION}
     if single_view:
         structure = '2::single illustration, one continuous scene, undivided composition::'
-    base = structure + ', ' + style
+    if render_version == RENDER_VERSION:
+        structure = structure.removeprefix('2::').removesuffix('::')
+        if count > 1:
+            structure += ', multiple views'
+        base = ', '.join(part for part in (style, structure) if part.strip())
+    else:
+        base = structure + ', ' + style
     if render_version == LEGACY_RENDER_VERSION:
         base += ', ' + str(project.get('setting', ''))
     if not single_view:
