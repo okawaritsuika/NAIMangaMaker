@@ -527,8 +527,6 @@ Keep each panel's primary actor, described acting person, dialogue speaker and c
             raise ValueError('기준 컷을 선택해 주세요.') from None
         at = anchor_index + (position == 'after')
         anchor = project['panels'][anchor_index]
-        if intent == 'emphasis' and text(payload.get('state_change')):
-            raise ValueError('강조는 직전·직후의 작은 동작 변화입니다. 착장 등 명시적인 상태 변경은 행동 연결을 선택해 주세요.')
         data = {k: text(payload.get(k)) for k in ('instruction', 'action_hint', 'state_change')}
         data.update(count=count, dialogue=mode, intent=intent, position=position, anchor_id=anchor['id'])
         folder = self.operation(project_id, data)
@@ -544,6 +542,7 @@ Actual prefix has already happened; fixed suffix is FUTURE and has not happened 
 For an ending request, finish through a visible resolution. For an empty suffix, continue the last actual state. For an empty prefix, write a preceding moment that leads into the first fixed panel.
 ''' + 'This operation:\n' + json.dumps(en, ensure_ascii=False) + '\nFixed suffix:\n' + json.dumps(clean(suffix), ensure_ascii=False)
         if intent == 'emphasis':
+            task += '\nFor emphasis, interpret state_change by its meaning, not by whether the field is populated. Expression, gaze, framing, and adjacent pose changes are compatible with emphasis. Preserve established outfit and held-object continuity. If the request requires an actual outfit or persistent possession change, return conflict explaining that action connection is needed; do not silently discard the request.\n'
             task += '\nREFERENCE anchor (show the adjacent action phase on the requested side, from a different angle):\n' + json.dumps(clean([anchor]), ensure_ascii=False)
         task += '\n' + SCHEMA + concise_instruction(project.get('generation_options'))
         progress('NAI가 앞뒤 연결과 새 컷을 만들고 있어요.')

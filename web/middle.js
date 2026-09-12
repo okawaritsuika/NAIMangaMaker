@@ -219,7 +219,7 @@ async function openExpand(panelId){
  const selectedProfile=()=>customChoices.find(row=>'preset:'+row.id===intent.value);
  const values=()=>({anchor_id:panelId,position:position.value,count:Number(count.value),intent:selectedProfile()?.base_intent||intent.value,...(selectedProfile()?{custom_profile_id:selectedProfile().id}:{}),dialogue:dialogue.value,action_hint:actionHint.value.trim(),state_change:stateChange.value.trim(),instruction:instruction.value.trim()});
  const persist=()=>writeDraft(key,values());form.addEventListener('input',persist);form.addEventListener('change',persist);
- const explain=()=>help.textContent=selectedProfile()?'선택한 내 프롬프트로 이번 컷을 작성합니다. 다른 단계의 설정은 그대로 사용합니다.':intent.value==='emphasis'?'기준 컷의 직전·직후 작은 동작을 다른 각도로 보여줍니다. 착장 변경은 행동 연결을 선택하세요.':'앞뒤 장면의 행동과 상태가 자연스럽게 연결되도록 요청합니다.';intent.addEventListener('change',explain);explain();
+ const explain=()=>help.textContent=selectedProfile()?'선택한 내 프롬프트로 이번 컷을 작성합니다. 다른 단계의 설정은 그대로 사용합니다.':intent.value==='emphasis'?'기준 컷의 직전·직후 작은 동작을 다른 각도로 보여줍니다. 표정·시선·구도 지시도 입력할 수 있습니다. 실제 착장·소지품 변경은 행동 연결을 선택하세요.':'앞뒤 장면의 행동과 상태가 자연스럽게 연결되도록 요청합니다.';intent.addEventListener('change',explain);explain();
  const buttons=el('div','actions-wrap'),cancel=el('button','','닫기');cancel.type='button';cancel.onclick=()=>dialog.close();
  const submit=el('button','primary','선택한 위치에 추가하기');submit.type='submit';submit.dataset.mutating='';buttons.append(cancel,submit);form.append(buttons);dialog.append(form);
  form.onsubmit=async event=>{event.preventDefault();if(isBusy()||pid!==state.project.id)return;persist();dialog.close();await launchJob('/api/story/projects/'+pid+'/expand',values(),'기준 컷 앞뒤에 새 이야기를 추가하고 있습니다.',{clear:[key]});};
