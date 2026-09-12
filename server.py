@@ -154,11 +154,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200,{'saved':True})
             if self.path.startswith('/api/story/') and self.command=='POST':
                 app=self.server.stories()
-                match=re.fullmatch(r'/api/story/projects/(p[0-9a-f]{12})/panels/([a-z][0-9a-f]{12})/(edit|reroll|restore)',self.path)
+                match=re.fullmatch(r'/api/story/projects/(p[0-9a-f]{12})/panels/([a-z][0-9a-f]{12})/(edit|reroll|restore|delete)',self.path)
                 if match:
                     pid,panel_id,operation=match.groups()
-                    if operation=='restore':
-                        return self.reply(200,app.workbench.public(app.mutation(pid,'restore_panel',panel_id,data)))
+                    if operation in ('restore','delete'):
+                        return self.reply(200,app.workbench.public(app.mutation(pid,operation+'_panel',panel_id,data)))
                     self.server.keys().credential_for('story')
                     return self.reply(200,app.job('edit_panel' if operation=='edit' else 'reroll_panel',data,pid,panel_id))
                 match=re.fullmatch(r'/api/story/projects/(p[0-9a-f]{12})/compose',self.path)

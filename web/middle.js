@@ -62,7 +62,7 @@ function renderPages(){
     if(imageURL){const link=document.createElement('a');link.href=imageURL;link.target='_blank';link.rel='noopener';link.setAttribute('aria-label',(index+1)+'페이지 원본 크게 보기');const image=document.createElement('img');image.src=imageURL;image.alt=(index+1)+'페이지 · '+ordered.length+'컷 만화';image.className='page-image';image.loading='lazy';link.append(image);card.append(link);}else card.append(el('div','page-placeholder','이 컷들을 한 장에 배치할 준비가 됐습니다.'));
     if(page.stale)card.append(el('p','stale','컷이나 구성이 바뀌어 이전 그림과 다릅니다. 현재 내용으로 다시 그려 주세요. 이전 그림 버전은 보존됩니다.'));
     if(page.error)card.append(el('p','page-error',page.error));const actions=el('div','page-actions'),statusNames={draft:'구성 완료',rendered:'그림 생성 완료',failed:'생성 확인 필요'};
-    actions.append(el('span','page-meta',statusNames[page.status]||'구성 완료'));const button=el('button','primary small','생성');button.type='button';button.dataset.renderPage=page.id;button.dataset.mutating='';button.addEventListener('click',()=>startRender(page));button.title=page.image_url?'새 시드로 다시 그리기':'이 페이지 그림 생성';head.append(button);card.append(actions);
+    actions.append(el('span','page-meta',statusNames[page.status]||'구성 완료'));const button=el('button','primary small','생성');button.type='button';button.dataset.renderPage=page.id;button.dataset.mutating='';button.addEventListener('click',()=>startRender(page));button.title=page.image_url?'새 시드로 다시 그리기':'이 페이지 그림 생성';const headActions=el('div','page-heading-actions');headActions.append(button,deleteAction('삭제',()=>mutate(projectPath()+'/pages/'+encodeURIComponent(page.id)+'/delete',{},'페이지를 삭제한 페이지 목록으로 옮겼습니다.')));head.append(headActions);card.append(actions);
     const tools=el('div','page-tools'),studio=el('a','hint','이미지 편집실에서 열기');studio.href='/image-editor?project='+encodeURIComponent(project.id)+'&page='+encodeURIComponent(page.id);studio.target='_blank';studio.rel='noopener';const reader=el('a','hint','이 페이지 크게 보기');reader.href='/reader?project='+encodeURIComponent(project.id)+'&page='+encodeURIComponent(page.id);reader.target='_blank';reader.rel='noopener';tools.append(reader,studio,pageEditor(page,index),promptEditor(page,index));card.append(tools);target.append(card);
   });
 }
@@ -85,7 +85,7 @@ function pageEditor(page,index){
     function versionInfo(){const record=renders[Number(version.value)];detail.textContent=record?'그림 '+(Number(version.value)+1)+' 선택 · 컷 내용은 바꾸지 않습니다.':'';choose.dataset.retryable=record&&!['failed','uncertain','started'].includes(record.status)?'yes':'no';updateControls();}
     version.addEventListener('change',versionInfo);history.append(choose);versionInfo();box.append(history);
   }
-  const remove=action('이 페이지 삭제',()=>mutate(path+'/delete',{},(index+1)+'페이지를 삭제한 페이지 목록으로 옮겼습니다. 언제든 복원할 수 있습니다.'));remove.classList.add('danger');box.append(el('div','divider'),remove,el('p','hint','컷 원문과 이전 그림은 삭제하지 않습니다. 아래 ‘삭제한 페이지’에서 복원할 수 있습니다.'));return box;
+  const remove=deleteAction('이 페이지 삭제',()=>mutate(path+'/delete',{},(index+1)+'페이지를 삭제한 페이지 목록으로 옮겼습니다. 언제든 복원할 수 있습니다.'));remove.classList.add('danger');box.append(el('div','divider'),remove,el('p','hint','컷 원문과 이전 그림은 삭제하지 않습니다. 아래 ‘삭제한 페이지’에서 복원할 수 있습니다.'));return box;
 }
 function promptEditor(page,index){
   const path=projectPath()+'/pages/'+encodeURIComponent(page.id),key=draftID('page-prompt',page.id),box=fold('고급 · 실제 이미지 프롬프트 편집',key),area=el('div');let loading=false,loaded=false;
@@ -130,6 +130,19 @@ function control(host,label,value,{kind='textarea',options=null,rows=2,required=
   input.value=value??'';input.required=required;if(!options&&!label.includes('시드'))input.dataset.tagInput='';wrapper.append(input);host.append(wrapper);return input;
 }
 function action(label,handler,{primary=false,auth=false}={}){const button=el('button',(primary?'primary ':'')+'small',label);button.type='button';button.dataset.mutating='';if(auth)button.dataset.auth='';button.addEventListener('click',handler);return button;}
+function deleteAction(label,handler){
+  let armed=false,timer;
+  const button=action(label,()=>{
+    if(isBusy())return;
+    if(armed){reset();handler();return;}
+    armed=true;button.textContent='한 번 더 눌러 삭제';button.classList.add('delete-armed');
+    timer=setTimeout(reset,5000);
+  });
+  function reset(){clearTimeout(timer);armed=false;button.textContent=label;button.classList.remove('delete-armed');}
+  button.classList.add('danger');button.addEventListener('blur',reset);
+  button.addEventListener('keydown',event=>{if(event.key==='Escape')reset();});
+  return button;
+}
 function dateLabel(value){if(!value)return '시간 미상';const date=new Date(value);return Number.isNaN(date.getTime())?'시간 미상':date.toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});}
 
 function panelCard(panel,index){
@@ -138,7 +151,7 @@ function panelCard(panel,index){
   radio.type='radio';radio.name='anchor';radio.dataset.panelAnchor=panel.id;radio.setAttribute('aria-label',(index+1)+'컷을 추가 기준으로 선택');radio.addEventListener('change',()=>{state.anchor=panel.id;updateAnchor();});anchorLabel.append(radio,el('span','',(index+1)+'컷 · 기준 선택'));
   const selectLabel=el('label','check-label'),checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.dataset.panelSelect=panel.id;
   checkbox.addEventListener('change',()=>{if(checkbox.checked)state.selected.add(panel.id);else state.selected.delete(panel.id);updateSelection();});
-  selectLabel.append(checkbox,el('span','','페이지에 담기'));top.append(anchorLabel,selectLabel);card.append(top);
+  selectLabel.append(checkbox,el('span','','페이지에 담기'));top.append(anchorLabel,selectLabel);if(!state.project.pages.some(page=>page.panel_ids.includes(panel.id)))top.append(deleteAction('삭제',()=>mutate(projectPath()+'/panels/'+encodeURIComponent(panel.id)+'/delete',{},'페이지에 담지 않은 컷을 삭제했습니다.')));card.append(top);
   const tags=el('div','tags'),intent=panel.origin?.intent;if(intents[intent])tags.append(el('span','tag',intents[intent]));
   const dialogues=Array.isArray(panel.dialogues_ko)?panel.dialogues_ko.map(visibleDialogue).filter(t=>t.trim()):[];tags.append(el('span','tag'+(dialogues.length?'':' silent'),dialogues.length?'대사 '+dialogues.length+'개':'무대사'));
   const pageLabels=state.project.pages.map((p,i)=>p.panel_ids.includes(panel.id)?(i+1)+'페이지':null).filter(Boolean);if(pageLabels.length)tags.append(el('span','tag',pageLabels.join(' · ')));
