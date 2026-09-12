@@ -8,7 +8,7 @@ LIMITS = dict(steps=dict(min=1, max=50), scale=dict(min=0, max=10), cfg_rescale=
               width=dict(min=256, max=2048, step=64), height=dict(min=256, max=2048, step=64))
 MAX_PIXELS = 3145728
 NUMERIC = ('steps', 'scale', 'cfg_rescale', 'width', 'height')
-FIELDS = (*NUMERIC, 'sampler', 'noise_schedule', 'style_prompt', 'negative_prompt')
+FIELDS = (*NUMERIC, 'sampler', 'noise_schedule', 'style_prompt', 'negative_prompt', 'color_mode')
 
 
 def original_defaults():
@@ -17,13 +17,15 @@ def original_defaults():
     style = ref['prompt'].split(', color, fully clothed,', 1)[0] + ', color, fully clothed'
     style = style.replace('detailed fantasy background', 'detailed background')
     return dict(**{k: ref[k] for k in (*NUMERIC, 'sampler', 'noise_schedule')},
-                style_prompt=style, negative_prompt=ref['uc'])
+                style_prompt=style, negative_prompt=ref['uc'], color_mode='prompt')
 
 
 def validate(value, *, base=None):
     if not isinstance(value, dict) or set(value) - set(FIELDS):
         raise ValueError('이미지 설정 항목을 확인해 주세요.')
     result = dict(copy.deepcopy(base) if base is not None else {}, **copy.deepcopy(value))
+    if result.get('color_mode','prompt') not in ('prompt','monochrome'):
+        raise ValueError('색상 모드는 프롬프트대로 또는 흑백을 선택해 주세요.')
     for key, limit in LIMITS.items():
         if key not in result:
             continue

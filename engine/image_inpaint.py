@@ -172,11 +172,15 @@ def render(workbench,pid,gid,request,value,progress):
         with Image.open(io.BytesIO(raw)) as generated:
             if generated.format!='PNG' or generated.size!=source.size: raise ValueError('인페인팅 응답의 크기가 원본과 달라요.')
             output=Image.composite(generated.convert('RGBA'),source,blend_mask(mask,feather))
+        from .image_color import monochrome, grayscale
+        if monochrome(settings): output=grayscale(output)
         (folder/'page.png').write_bytes(png(output))
         record.update(status='rendered',verified=True,verification_kind='mask_composite_sha256',
             image_url=f'/files/{pid}/{relative}/page.png',image_sha256=sha(folder/'page.png'),
             actual_image_dimensions=dict(width=source.width,height=source.height),error=None)
-        save(attempt,dict(status='complete',api_png_sha256=sha(folder/'api.png'),image_sha256=record['image_sha256'],unmasked_pixels_preserved=True))
+        record['color_mode']=settings.get('color_mode','prompt')
+        outside=ImageChops.multiply(ImageChops.difference(output,source).convert('RGB'),ImageChops.invert(mask).convert('RGB'))
+        save(attempt,dict(status='complete',api_png_sha256=sha(folder/'api.png'),image_sha256=record['image_sha256'],unmasked_pixels_preserved=outside.getbbox() is None))
         if session: session.stage_completed('image',folder)
         workbench.commit(project)
         progress('인페인팅 미리보기를 저장했어요. 확인한 뒤 페이지에 적용해 주세요.')

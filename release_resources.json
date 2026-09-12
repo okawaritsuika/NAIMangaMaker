@@ -34,6 +34,7 @@
     "engine/framing_layout.py",
     "engine/image_cost.py",
     "engine/image_inpaint.py",
+    "engine/image_color.py",
     "engine/image_preferences.py",
     "engine/image_studio.py",
     "engine/iterative_add_page.py",

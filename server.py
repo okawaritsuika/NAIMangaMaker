@@ -155,6 +155,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200,{'saved':True})
             if self.path.startswith('/api/story/') and self.command=='POST':
                 app=self.server.stories()
+                match=re.fullmatch(r'/api/story/projects/(p[0-9a-f]{12})/delete',self.path)
+                if match:return self.reply(200,app.delete_project(match[1],data))
                 match=re.fullmatch(r'/api/story/projects/(p[0-9a-f]{12})/panels/([a-z][0-9a-f]{12})/(edit|reroll|restore|delete)',self.path)
                 if match:
                     pid,panel_id,operation=match.groups()

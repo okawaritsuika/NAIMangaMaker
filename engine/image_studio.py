@@ -36,7 +36,7 @@ def form(settings, audit):
     positives = params['v4_prompt']['caption']['char_captions']
     negatives = params['v4_negative_prompt']['caption']['char_captions']
     actors = audit['actors']
-    return dict(prompt=body['input'], negative_prompt=params['negative_prompt'], model=body['model'],
+    return dict(prompt=body['input'], negative_prompt=params['negative_prompt'], model=body['model'], color_mode=settings.get('color_mode','prompt'),
         **{key: params[key] for key in ('seed','width','height','steps','scale','cfg_rescale','sampler','noise_schedule')},
         characters=[dict(index=i, source_index=actor.get('source_index', i), panel_id=actor['panel_id'], actor=actor['actor'],
             prompt=positive['char_caption'], negative_prompt=negative['char_caption'], centers=positive['centers'])
@@ -119,9 +119,10 @@ def render(workbench,pid,gid,data,progress=lambda _:None):
     from .iterative_page_rendering import _automatic
     automatic_settings, _ = _automatic(project, page)
     prompts = validate_prompt_overrides(data['prompt_overrides'],len(automatic_settings['v4_prompt']['caption']['char_captions']))
-    if set(data['image_settings'])-set((*preferences.NUMERIC,'sampler','noise_schedule')):
+    if set(data['image_settings'])-set((*preferences.NUMERIC,'sampler','noise_schedule','color_mode')):
         raise ValueError('편집실 수치 설정 항목을 확인해 주세요.')
     defaults = {key:current[key] for key in (*preferences.NUMERIC,'sampler','noise_schedule')}
+    defaults['color_mode']=current.get('color_mode','prompt')
     settings = preferences.validate(data['image_settings'],base=defaults)
     request = dict(prompt_overrides=prompts,image_settings=settings,apply_result=False,
                    source_sha256=data['source_sha256'],reroll=True)

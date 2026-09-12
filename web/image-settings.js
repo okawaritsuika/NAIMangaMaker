@@ -1,9 +1,9 @@
 (() => {
- const by=id=>document.getElementById(id),keys=['style_prompt','negative_prompt','steps','scale','sampler','width','height','cfg_rescale','noise_schedule'],numeric=new Set(['steps','scale','width','height','cfg_rescale']);let saved=null;
+ const by=id=>document.getElementById(id),keys=['style_prompt','negative_prompt','steps','scale','sampler','width','height','cfg_rescale','noise_schedule','color_mode'],numeric=new Set(['steps','scale','width','height','cfg_rescale']);let saved=null;
  function values(){return Object.fromEntries(keys.map(k=>[k,numeric.has(k)?Number(by(k).value):by(k).value]))}
  function resolution(){const size=by('width').value+'x'+by('height').value;document.querySelectorAll('[data-size]').forEach(n=>n.setAttribute('aria-pressed',String(n.dataset.size===size)))}
- function fill(data){for(const k of keys)by(k).value=data[k];resolution()}
- function summary(){by('savedNumbers').textContent=`현재 저장값 ${saved.width} × ${saved.height} · Steps ${saved.steps} · CFG ${saved.scale} · ${saved.sampler}`;by('savedStyle').textContent=saved.style_prompt||'그림체 미지정'}
+ function fill(data){for(const k of keys)by(k).value=data[k]??(k==='color_mode'?'prompt':'');resolution()}
+ function summary(){by('savedNumbers').textContent=`현재 저장값 ${saved.width} × ${saved.height} · Steps ${saved.steps} · CFG ${saved.scale} · ${saved.sampler} · ${saved.color_mode==='monochrome'?'흑백':'프롬프트대로'}`;by('savedStyle').textContent=saved.style_prompt||'그림체 미지정'}
  function stash(){try{localStorage.setItem('naimanga-image-settings-draft',JSON.stringify(values()))}catch{}}
  document.querySelectorAll('[data-size]').forEach(n=>n.onclick=()=>{const [w,h]=n.dataset.size.split('x');by('width').value=w;by('height').value=h;resolution();stash();by('imageStatus').textContent='변경사항이 있습니다.'});
  by('imageSettingsForm').addEventListener('input',()=>{resolution();stash();by('imageStatus').textContent='변경사항이 있습니다.'});

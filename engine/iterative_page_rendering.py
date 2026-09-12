@@ -46,6 +46,7 @@ class RenderingMixin:
         positives = params['v4_prompt']['caption']['char_captions']
         negatives = params['v4_negative_prompt']['caption']['char_captions']
         return dict(prompt=body['input'], negative_prompt=params['negative_prompt'],
+            color_mode=settings.get('color_mode','prompt'),
             characters=[dict(index=i, source_index=actor.get('source_index', i), panel_id=actor['panel_id'], actor=actor['actor'],
                 prompt=positive['char_caption'], negative_prompt=negative['char_caption'],
                 centers=copy.deepcopy(positive['centers']))
@@ -176,7 +177,7 @@ def render_project_page(workbench, project_id, page_id, progress=lambda _: None,
                       response_zip_exists=(folder/'response.zip').exists(), png_exists=(folder/'page.png').exists())
         if record['png_exists']:
             record['image_url'] = f'/files/{project_id}/{relative}/page.png'
-            record['original_api_png'] = record['response_zip_exists']
+            record['original_api_png'] = record['response_zip_exists'] and settings.get('color_mode')!='monochrome'
         if apply_result:
             page.update(status='failed', error='그림 요청의 완료를 확인하지 못했어요. 받은 파일과 버전을 보존했어요. 자동 재요청은 하지 않아요.')
         workbench.commit(project)
@@ -184,8 +185,12 @@ def render_project_page(workbench, project_id, page_id, progress=lambda _: None,
     image = Path(result['image']).resolve()
     image_relative = image.relative_to(workbench.folder(project_id).resolve()).as_posix()
     record.update(status='rendered', image_url=f'/files/{project_id}/{image_relative}', verified=True,
-                  original_api_png=True, response_zip_exists=True, png_exists=True,
+                  original_api_png=result.get('original_api_png',True), response_zip_exists=True, png_exists=True,
                   settings_sha256=_digest(result['settings']), image_sha256=result.get('image_sha256'))
+    if result.get('original_api_png') is False:
+        from .image_studio import source_hash
+        record.update(engine='novelai_monochrome',verification_kind=result['verification_kind'],
+            api_image_sha256=result['api_image_sha256'],studio_source_sha256=source_hash(project,request_page))
     if apply_result:
         page.update(status='rendered', image_url=record['image_url'], error=None, stale=False,
                     selected_render_index=page['renders'].index(record))

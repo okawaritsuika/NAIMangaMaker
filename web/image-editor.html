@@ -166,7 +166,8 @@ if(!query.has('project') && !query.has('page')) {
 const settingsMode = location.pathname.replace(/\/$/, '') === '/image-settings';
 const state = {projectId:query.get('project') || '',pageId:query.get('page') || '',ready:false,busy:false,defaults:null,base:null,studio:null,characters:[],characterHandles:[],history:[],candidateId:null,view:'original',pending:null,pollTimer:null,source:'',storageWarning:false};
 const numericKeys = ['steps','scale','cfg_rescale','width','height'];
-const settingKeys = [...numericKeys,'sampler','noise_schedule'];
+const settingKeys = [...numericKeys,'sampler','noise_schedule','color_mode'];
+const colorLabel=document.createElement('label');colorLabel.textContent='색상';const colorSelect=document.createElement('select');colorSelect.id='color_mode';colorSelect.append(new Option('프롬프트대로','prompt'),new Option('흑백 · 결과 색 제거','monochrome'));colorLabel.append(colorSelect);$('sampler').parentElement.before(colorLabel);
 const resolutionPresets = {'832x1216':[832,1216],'1216x832':[1216,832],'1024x1024':[1024,1024]};
 const copy = value => JSON.parse(JSON.stringify(value));
 const editorPath = () => '/api/story/projects/' + encodeURIComponent(state.projectId) + '/pages/' + encodeURIComponent(state.pageId) + '/studio';
@@ -274,6 +275,7 @@ function setForm(value) {
   for(const key of numericKeys) if(value[key] !== undefined && value[key] !== null) $(key).value = String(value[key]);
   addOptions('sampler',state.defaults.samplers,value.sampler);
   addOptions('noise_schedule',state.defaults.noise_schedules,value.noise_schedule);
+  $('color_mode').value=value.color_mode||'prompt';
   $('randomSeed').checked = value.random_seed !== false;
   $('seed').value = value.seed === null || value.seed === undefined ? '' : String(value.seed);
   renderCharacters(value.characters || []);
@@ -312,7 +314,7 @@ function recoverDraft() {
 function settingPayload() {
   const result = {};
   for(const key of numericKeys) { if($(key).value.trim() === '') throw new Error('생성 수치를 모두 입력해 주세요.'); const number = Number($(key).value); if(!Number.isFinite(number)) throw new Error('생성 수치에는 숫자를 입력해 주세요.'); const limit = (state.defaults.limits || {})[key] || {}; if((limit.min !== undefined && number < limit.min) || (limit.max !== undefined && number > limit.max)) throw new Error(key + ' 값을 허용 범위 안에서 입력해 주세요.'); if(['steps','width','height'].includes(key) && !Number.isInteger(number)) throw new Error('생성 단계와 가로·세로는 정수로 입력해 주세요.'); result[key] = number; }
-  for(const key of ['sampler','noise_schedule']) result[key] = $(key).value;
+  for(const key of ['sampler','noise_schedule','color_mode']) result[key] = $(key).value;
   if(result.width % 64 || result.height % 64) throw new Error('가로와 세로는 64px 단위로 입력해 주세요.');
   const maximum = state.defaults.max_pixels || (state.defaults.limits || {}).max_pixels;
   if(maximum && result.width * result.height > maximum) throw new Error('전체 이미지 크기가 ' + Number(maximum).toLocaleString('ko-KR') + 'px을 넘습니다. 가로나 세로를 줄여 주세요.');
@@ -326,6 +328,7 @@ function renderPayload() {
   return {source_sha256:state.source,prompt_overrides:{prompt:value.prompt,negative_prompt:value.negative_prompt,characters:value.characters.map(row => ({source_index:row.source_index??row.index,prompt:row.prompt,negative_prompt:row.negative_prompt,centers:row.centers}))},image_settings:settingPayload(),seed};
 }
 function engineLabel(row) {
+  if(row?.engine === 'novelai_monochrome') return 'NAI 흑백 · 원본 별도 보존';
   if(row?.engine === 'novelai_inpaint') return 'NAI 부분 수정';
   return row && row.engine === 'gpt_image_edit' ? 'GPT 이미지 보정' : row && row.engine === 'novelai' ? 'NAI 원본' : '생성 결과';
 }

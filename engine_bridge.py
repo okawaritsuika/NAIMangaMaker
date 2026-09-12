@@ -93,6 +93,39 @@ class RemoteApp(App):
     def start_story(self, payload):
         return self.starts.start(payload)
 
+    def delete_project(self, pid, payload):
+        import re
+        import shutil
+        if payload != {'confirmed':True} or type(payload.get('confirmed')) is not bool:
+            raise ValueError('작품과 모든 그림·이력을 삭제할지 확인해 주세요.')
+        with self.lock:
+            self.starts.guard(pid);self.auto.guard(pid)
+            if pid in self.active:
+                raise ValueError('생성 중인 작품은 삭제할 수 없어요. 작업이 끝난 뒤 삭제해 주세요.')
+            root=self.workbench.directory.resolve()
+            folder=self.workbench.folder(pid)
+            if folder.is_symlink() or folder.is_junction() or folder.resolve().parent!=root:
+                raise ValueError('작품 저장 경로를 확인해 주세요.')
+            if not folder.is_dir(): raise FileNotFoundError(pid)
+            groups=[(self.jobs,'_jobs','j'),(self.auto.runs,'_auto','a'),(self.starts.runs,'_starts','s')]
+            cleanup=[]
+            for entries,sub,prefix in groups:
+                for rid,record in entries.items():
+                    if record.get('project_id')!=pid: continue
+                    if not re.fullmatch(prefix+r'[0-9a-f]{12}',rid): raise ValueError('작업 기록 번호를 확인해 주세요.')
+                    path=root/sub/(rid+'.json')
+                    if not path.resolve().is_relative_to(root): raise ValueError('작업 기록 경로를 확인해 주세요.')
+                    cleanup.append((entries,rid,path))
+            for manager in (self.auto,self.starts):
+                if any(r.get('project_id')==pid and manager.threads.get(rid) and manager.threads[rid].is_alive()
+                       for rid,r in manager.runs.items()):
+                    raise ValueError('자동 작업이 종료되는 중이에요. 잠시 뒤 삭제해 주세요.')
+            # All targets are checked before removing the explicitly confirmed project.
+            shutil.rmtree(folder)
+            for entries,rid,path in cleanup:
+                path.unlink(missing_ok=True);entries.pop(rid,None)
+            return dict(deleted=True,project_id=pid)
+
     def job(self, kind, payload, project_id=None, target_id=None, **kwargs):
         if hasattr(self, 'starts') and project_id:
             self.starts.guard(project_id, kwargs.get('auto_run_id'))

@@ -124,6 +124,21 @@ const $ = id => document.getElementById(id);
 const state = {projects:[],loaded:false,busy:false};
 const labels = {draft:'페이지 미구성',in_progress:'그림 작업 중',rendered:'구성한 페이지 그림 완료',complete:'완성',error:'읽기 오류'};
 function node(tag,text,className) { const value=document.createElement(tag); if(text!==undefined)value.textContent=text; if(className)value.className=className; return value; }
+const deleteDialog=node('dialog'),deleteBody=node('div',undefined,'body'),deleteTitle=node('h2','만화 삭제'),deleteText=node('p'),deleteActions=node('div',undefined,'links'),deleteCancel=node('button','취소'),deleteConfirm=node('button','만화 삭제','danger');
+deleteTitle.id='deleteComicTitle';deleteDialog.setAttribute('aria-labelledby',deleteTitle.id);
+deleteText.style.whiteSpace='pre-line';deleteActions.append(deleteCancel,deleteConfirm);deleteBody.append(deleteTitle,deleteText,deleteActions);deleteDialog.append(deleteBody);document.body.append(deleteDialog);
+let pendingDelete=null,deleting=false;
+deleteCancel.onclick=()=>deleteDialog.close();deleteDialog.oncancel=e=>{if(deleting)e.preventDefault();};
+deleteDialog.onclose=()=>{pendingDelete=null;};
+deleteConfirm.onclick=async()=>{
+  const project=pendingDelete;if(!project||deleting)return;
+  deleting=true;deleteConfirm.disabled=deleteCancel.disabled=true;
+  try{await api('/api/story/projects/'+encodeURIComponent(project.id)+'/delete','POST',{confirmed:true});
+    state.projects=state.projects.filter(row=>row.id!==project.id);render();
+    $('status').textContent='“'+project.title+'”을 삭제했습니다.';
+  }catch(error){$('status').className='status error';$('status').textContent=error.message;}
+  finally{deleting=false;deleteConfirm.disabled=deleteCancel.disabled=false;deleteDialog.close();}
+};
 function validId(value) { return typeof value==='string' && /^p[0-9a-f]{12}$/.test(value); }
 function imageUrl(project) {
   try { const url=new URL(project.cover_url,location.origin); return project.cover_url && url.origin===location.origin && url.pathname.startsWith('/files/'+project.id+'/') && /\.(png|webp)$/i.test(url.pathname) ? url.href : ''; } catch { return ''; }
@@ -164,7 +179,10 @@ function renderCard(project) {
     const download=node('a','원본 ZIP','download'); download.href='/api/story/projects/'+encodeURIComponent(project.id)+'/export';
     links.append(edit,download); body.append(links);
   }
-  card.append(cover,body); return card;
+  const remove=node('button','삭제','button danger');remove.type='button';
+  remove.setAttribute('aria-label',project.title+' 삭제');
+  remove.onclick=()=>{pendingDelete=project;deleteText.textContent='“'+project.title+'”을 삭제할까요?\n이 작품의 모든 컷, 페이지 그림, 이전 버전과 작업 기록이 삭제됩니다. 되돌릴 수 없습니다.';deleteDialog.showModal();};
+  body.append(remove);card.append(cover,body); return card;
 }
 function render() {
   const rows=visibleProjects(); $('grid').replaceChildren(...rows.map(renderCard));

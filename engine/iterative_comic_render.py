@@ -279,6 +279,8 @@ def build_settings(project, page, layout='auto', *, render_version=RENDER_VERSIO
                 actor_audit[index]['center'] = copy.deepcopy(row['centers'])
         snapshot['page'].update(prompt_overrides=copy.deepcopy(overrides),
                                 prompt_overrides_source_sha256=prompt_source_sha256)
+    from .image_color import guide
+    guide(settings)
     audit = dict(source=snapshot, source_sha256=_digest(snapshot), reference_sha256=sha(REFERENCE),
         prompt_source_sha256=prompt_source_sha256, prompt_overrides_applied=overrides is not None,
         prompt_override_fields=['prompt', 'negative_prompt', 'character caption text'] if overrides is not None else [],
@@ -297,6 +299,7 @@ def render_page(project, page, folder, api_key, progress=None, *, anlas_confirme
     folder = Path(folder).resolve()
     settings_path, audit_path = folder / 'settings.json', folder / 'audit.json'
     image_path, request_path, attempt = folder / 'page.png', folder / 'request.json', folder / 'attempt.json'
+    from .image_color import monochrome, finish
     saved_audit = read(audit_path) if audit_path.exists() else None
     version = saved_audit.get('render_version', LEGACY_RENDER_VERSION) if saved_audit is not None else RENDER_VERSION
     settings, audit = build_settings(project, page, render_version=version)
@@ -319,8 +322,8 @@ def render_page(project, page, folder, api_key, progress=None, *, anlas_confirme
         return dict(image=str(image_path), settings=settings, audit=audit,
             settings_path=str(settings_path), audit_path=str(audit_path), request_path=str(request_path),
             reused=reused, composited=False, **verified)
-    if image_path.exists():
-        verified = verify_rendered(image_path, settings, request_path)
+    if image_path.exists() or (monochrome(settings) and (folder/'api.png').exists()):
+        verified = finish(folder,settings,request_path) if monochrome(settings) else verify_rendered(image_path, settings, request_path)
         if progress:
             progress('기존 페이지 원본과 생성 설정을 확인했습니다.')
         return result(True, verified)
@@ -348,8 +351,8 @@ def render_page(project, page, folder, api_key, progress=None, *, anlas_confirme
             names = [name for name in archive.namelist() if name.lower().endswith('.png')]
             if len(names) != 1:
                 raise ValueError('Expected exactly one original PNG in the response')
-            image_path.write_bytes(archive.read(names[0]))
-        verified = verify_rendered(image_path, settings, request_path)
+            (folder/'api.png' if monochrome(settings) else image_path).write_bytes(archive.read(names[0]))
+        verified = finish(folder,settings,request_path) if monochrome(settings) else verify_rendered(image_path, settings, request_path)
         save(attempt, dict(status='complete', original_png_bytes_preserved=True, **verified))
     except Exception as error:
         save(attempt, dict(status='uncertain', automatic_retry=False, error_type=type(error).__name__))
