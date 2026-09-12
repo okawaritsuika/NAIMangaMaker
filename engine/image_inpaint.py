@@ -9,7 +9,7 @@ import urllib.request
 import urllib.error
 import zipfile
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageFilter
 
 from .forced_infill_delivery import payload, save, read, sha
 from .image_studio import artifact, check_source
@@ -24,11 +24,14 @@ def png(image):
 
 
 def inputs(workbench, pid, page, value):
-    if not isinstance(value, dict) or set(value) != {'render_id','image_sha256','mask','strength'}:
+    required={'render_id','image_sha256','mask','strength'}
+    if not isinstance(value, dict) or not required <= set(value) or set(value)-required-{'feather'}:
         raise ValueError('인페인팅 원본과 마스크를 확인해 주세요.')
     strength = value['strength']
     if type(strength) not in (int,float) or not math.isfinite(strength) or not 0.01 <= strength <= 1:
         raise ValueError('변경 강도는 0.01~1 사이여야 해요.')
+    if type(value.get('feather',8)) is not int or not 0 <= value.get('feather',8) <= 32:
+        raise ValueError('경계 부드럽게는 0~32픽셀 사이여야 해요.')
     row = next((r for r in page.get('renders',[]) if r['id']==value['render_id']),None)
     if not row or row.get('status')!='rendered' or not row.get('verified'):
         raise ValueError('완료된 그림을 인페인팅 원본으로 선택해 주세요.')
@@ -59,7 +62,20 @@ def inputs(workbench, pid, page, value):
     return row,source,mask
 
 
-def request_body(settings, source, mask, strength):
+def blend_mask(mask, radius):
+    """Fade inward only, keeping every unselected pixel exactly unchanged."""
+    if not radius: return mask
+    distance=Image.new('L',mask.size)
+    inner=mask
+    for _ in range(radius+1):
+        distance=ImageChops.add(distance,inner.point(lambda x:1 if x else 0))
+        inner=inner.filter(ImageFilter.MinFilter(3))
+    # A small isolated brush mark must still have a fully editable center.
+    maximum=distance.getextrema()[1]
+    return distance.point(lambda x:round(255*x/maximum) if maximum else 0)
+
+
+def request_body(settings, source, mask, strength, legacy=False):
     body=payload(settings)
     body.update(model='nai-diffusion-5-full-inpainting',action='infill')
     params=body['parameters']
@@ -68,6 +84,16 @@ def request_body(settings, source, mask, strength):
                   params_version=4,noise_schedule='karras')
     for key in ('sm','sm_dyn','autoSmea'):
         params.pop(key,None)
+    if not legacy:
+        # NAIA's small-mask convention expands to full resolution on the wire.
+        small=mask.resize((source.width//8,source.height//8)).point(lambda x:255 if x>127 else 0)
+        wire_mask=small.resize(source.size,Image.Resampling.NEAREST).convert('RGB')
+        if wire_mask.getbbox() is None:
+            raise ValueError('선택 영역이 너무 작아요. 브러시로 조금 더 넓게 칠해 주세요.')
+        params['mask']=base64.b64encode(png(wire_mask)).decode()
+        params.pop('strength',None)
+        params.update(inpaintImg2ImgStrength=strength,img2img=dict(strength=strength,color_correct=True),
+                      request_type='NativeInfillingRequest')
     return body
 
 
@@ -96,8 +122,11 @@ def render(workbench,pid,gid,request,value,progress):
         requested.update(width=source.width,height=source.height,seed=request.get('seed',secrets.randbits(32)))
         _set_overrides(project,requested,request['prompt_overrides'])
     settings,audit=build_settings(project,requested)
-    body=request_body(settings,source,mask,value['strength'])
+    legacy=record is not None and record.get('provenance',{}).get('pipeline')!='native_strength_soft_edge_v2'
+    feather=0 if legacy else value.get('feather',8)
+    body=request_body(settings,source,mask,value['strength'],legacy=legacy)
     binding=dict(request_sha256=digest(body),source_sha256=request['source_sha256'],parent_sha256=sha(artifact(workbench,pid,parent['folder']+'/page.png')))
+    if not legacy: binding['feather']=feather
     if (folder/'binding.json').exists():
         if read(folder/'binding.json')!=binding: raise ValueError('보존한 인페인팅 요청과 현재 입력이 달라요.')
     else:
@@ -113,7 +142,8 @@ def render(workbench,pid,gid,request,value,progress):
             audit_path=relative+'/audit.json',request_path=relative+'/request.json',studio_candidate=True,
             studio_source_sha256=request['source_sha256'],engine='novelai_inpaint',verified=False,
             original_api_png=False,composited=True,provenance=dict(parent_render_id=parent['id'],
-            parent_sha256=binding['parent_sha256'],mask_sha256=sha(folder/'mask.png'),strength=value['strength']))
+            parent_sha256=binding['parent_sha256'],mask_sha256=sha(folder/'mask.png'),strength=value['strength'],
+            feather=feather,pipeline='native_strength_soft_edge_v2'))
         page.setdefault('renders',[]).append(record)
         workbench.commit(project)
     attempt=folder/'attempt.json'
@@ -141,7 +171,7 @@ def render(workbench,pid,gid,request,value,progress):
         (folder/'api.png').write_bytes(raw)
         with Image.open(io.BytesIO(raw)) as generated:
             if generated.format!='PNG' or generated.size!=source.size: raise ValueError('인페인팅 응답의 크기가 원본과 달라요.')
-            output=Image.composite(generated.convert('RGBA'),source,mask)
+            output=Image.composite(generated.convert('RGBA'),source,blend_mask(mask,feather))
         (folder/'page.png').write_bytes(png(output))
         record.update(status='rendered',verified=True,verification_kind='mask_composite_sha256',
             image_url=f'/files/{pid}/{relative}/page.png',image_sha256=sha(folder/'page.png'),

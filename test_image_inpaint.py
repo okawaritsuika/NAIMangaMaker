@@ -9,9 +9,10 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageChops
 from engine import image_inpaint, image_studio
-from engine.forced_infill_delivery import sha, save
+from engine.forced_infill_delivery import sha, save, read
+from engine.iterative_recovery import digest
 from engine.iterative_comic_render import build_settings
 from engine.iterative_comic_server import App
 from test_story_fixture import DemoWorkbench
@@ -49,7 +50,7 @@ class InpaintTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             wb,pid,gid,data=fixture(directory)
             page=wb.load(pid)['pages'][0]
-            for update in (dict(strength=float('nan')),dict(image_sha256='wrong'),dict(render_id='../other'),
+            for update in (dict(strength=float('nan')),dict(feather=-1),dict(feather=33),dict(feather=True),dict(image_sha256='wrong'),dict(render_id='../other'),
                            dict(mask='bad!'),dict(mask=base64.b64encode(image_inpaint.png(Image.new('L',(64,64)))).decode()),
                            dict(mask=base64.b64encode(image_inpaint.png(Image.new('L',(256,256)))).decode())):
                 with self.subTest(update=list(update)),self.assertRaises(ValueError):
@@ -63,12 +64,16 @@ class InpaintTests(unittest.TestCase):
                 body=json.loads(request.data)
                 self.assertEqual(body['action'],'infill')
                 self.assertEqual(body['model'],'nai-diffusion-5-full-inpainting')
-                self.assertEqual(body['parameters']['strength'],.8)
+                self.assertNotIn('strength',body['parameters'])
+                self.assertEqual(body['parameters']['inpaintImg2ImgStrength'],.8)
+                self.assertEqual(body['parameters']['img2img'],dict(strength=.8,color_correct=True))
+                self.assertEqual(body['parameters']['request_type'],'NativeInfillingRequest')
                 self.assertEqual(body['parameters']['seed'],42)
                 self.assertEqual(body['parameters']['noise_schedule'],'karras')
                 self.assertEqual(body['parameters']['v4_prompt']['caption']['char_captions'],[])
                 with Image.open(io.BytesIO(base64.b64decode(body['parameters']['mask']))) as mask:
-                    self.assertEqual(mask.getpixel((0,0)),0);self.assertEqual(mask.getpixel((100,100)),255)
+                    self.assertEqual(mask.mode,'RGB');self.assertEqual(mask.size,(256,256))
+                    self.assertEqual(mask.getpixel((0,0)),(0,0,0));self.assertEqual(mask.getpixel((100,100)),(255,255,255))
                 raw=io.BytesIO()
                 with zipfile.ZipFile(raw,'w') as archive: archive.writestr('image.png',image_inpaint.png(Image.new('RGB',(256,256),'red')))
                 return io.BytesIO(raw.getvalue())
@@ -82,12 +87,54 @@ class InpaintTests(unittest.TestCase):
             with Image.open(wb.folder(pid)/row['folder']/'page.png') as image:
                 self.assertEqual(image.getpixel((0,0)),(20,50,80,255))
                 self.assertEqual(image.getpixel((100,100)),(255,0,0,255))
+                self.assertLess(image.getpixel((80,100))[0],image.getpixel((84,100))[0])
             self.assertFalse(row['original_api_png']);self.assertTrue(row['composited'])
             result=wb.select_render(pid,gid,dict(index=1))
             self.assertEqual(result['pages'][0]['image_url'],row['image_url'])
             self.assertFalse(result['pages'][0]['stale'])
             self.assertEqual(len(result['pages'][0]['renders']),2)
             self.assertTrue((wb.folder(pid)/row['folder']/'api.png').exists())
+
+    def test_feather_preserves_outside_and_fades_inward(self):
+        mask=Image.new('L',(64,64));ImageDraw.Draw(mask).rectangle((10,10,50,50),fill=255)
+        soft=image_inpaint.blend_mask(mask,8)
+        self.assertEqual(ImageChops.multiply(soft,ImageChops.invert(mask)).getbbox(),None)
+        self.assertEqual(soft.getpixel((30,30)),255)
+        values=[soft.getpixel((x,30)) for x in range(9,20)]
+        self.assertEqual(values,sorted(values));self.assertLess(max(b-a for a,b in zip(values,values[1:])),32)
+        self.assertEqual(image_inpaint.blend_mask(mask,0).tobytes(),mask.tobytes())
+        tiny=Image.new('L',(64,64));tiny.putpixel((20,20),255)
+        self.assertEqual(image_inpaint.blend_mask(tiny,8).getpixel((20,20)),255)
+        full=Image.new('L',(64,64),255)
+        self.assertEqual(image_inpaint.blend_mask(full,8).getextrema(),(255,255))
+
+    def test_legacy_saved_response_resumes_without_requesting_again(self):
+        with tempfile.TemporaryDirectory() as directory:
+            wb,pid,gid,data=fixture(directory)
+            wb.image_key_provider=lambda:'fixture-key'
+            folder=wb.folder(pid)/'renders'/gid/'o123456789abc'
+            class Session:
+                def artifact_folder(self,*args,**kwargs):return folder
+                def stage_started(self,*args):pass
+                def stage_completed(self,*args):pass
+            with patch('engine.iterative_recovery.current_session',return_value=Session()),patch('engine.image_cost.ensure_allowance',return_value={}),patch('engine.image_inpaint.urllib.request.urlopen',side_effect=TimeoutError):
+                with self.assertRaises(TimeoutError):image_studio.render(wb,pid,gid,data)
+            # Reconstruct a v1.0.18 saved request with a received response, but no completed composite.
+            project=wb.load(pid);record=project['pages'][0]['renders'][-1]
+            record['provenance'].pop('pipeline');record['provenance'].pop('feather');wb.commit(project)
+            _,source,mask=image_inpaint.inputs(wb,pid,project['pages'][0],data['inpaint'])
+            body=image_inpaint.request_body(read(folder/'settings.json'),source,mask,.8,legacy=True)
+            binding=read(folder/'binding.json');binding.pop('feather');binding['request_sha256']=digest(body)
+            save(folder/'binding.json',binding);save(folder/'request.json',body)
+            with zipfile.ZipFile(folder/'response.zip','w') as archive:
+                archive.writestr('image.png',image_inpaint.png(Image.new('RGB',(256,256),'red')))
+            with patch('engine.iterative_recovery.current_session',return_value=Session()),patch('engine.image_inpaint.urllib.request.urlopen') as call:
+                result=image_studio.render(wb,pid,gid,data)
+            call.assert_not_called()
+            self.assertEqual(result['pages'][0]['renders'][-1]['status'],'rendered')
+            with Image.open(folder/'page.png') as image:
+                self.assertEqual(image.getpixel((80,100)),(255,0,0,255))
+                self.assertEqual(image.getpixel((79,100)),(20,50,80,255))
 
     def test_uncertain_request_does_not_repeat_on_resume(self):
         with tempfile.TemporaryDirectory() as directory:
