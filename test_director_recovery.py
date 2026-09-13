@@ -9,6 +9,7 @@ from unittest.mock import patch
 from engine.iterative_comic import save
 from engine.iterative_comic_server import App
 from engine.iterative_director import validate_decision
+from engine.iterative_autobook import writer_instruction
 from engine.iterative_recovery import archive_failed_stage, current_session, incomplete_response, run_stage
 from test_story_fixture import DemoWorkbench
 
@@ -36,6 +37,40 @@ class DirectorRecovery(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 validate_decision(dict(DECISION, **changes), CONTEXT)
 
+    def test_korean_and_mixed_decisions_preserve_content(self):
+        for instruction in ('Show 민수 reaching for the watering can.', '물뿌리개를 집어 드는 장면을 보여 주세요.'):
+            raw = dict(DECISION, instruction=instruction, reason_en='물을 주기 전에 집어 들어야 해요.',
+                       editorial=dict(camera_goal='손과 물뿌리개를 함께 보여 주세요.'))
+            original = copy.deepcopy(raw)
+            result = validate_decision(raw, CONTEXT)
+            self.assertEqual(raw, original)
+            self.assertEqual(result['instruction'], instruction)
+            self.assertEqual(result['reason_en'], raw['reason_en'])
+            self.assertEqual(result['editorial'], raw['editorial'])
+        result = validate_decision(dict(DECISION, action='stop', instruction='',
+                                       reason_en='정원 가꾸기가 끝났어요.'), CONTEXT)
+        self.assertTrue(result['should_end'])
+
+    def test_korean_director_instruction_uses_existing_writer_translation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            wb = DemoWorkbench(Path(temp))
+            project = wb.create(dict(seed='A gardener plants flowers', count=1))
+            decision = validate_decision(dict(DECISION, instruction='물뿌리개를 들어 주세요.',
+                editorial=dict(camera_goal='손과 물뿌리개를 함께 보여 주세요.')), CONTEXT)
+            wb.demo_calls.clear()
+            after = wb.expand(project['id'], dict(anchor_id=project['panels'][-1]['id'],
+                count=1, intent=decision['intent'], dialogue=decision['dialogue'],
+                instruction=writer_instruction(decision)))
+            stages = [call['stage'] for call in wb.demo_calls]
+            self.assertLess(stages.index('input_translation'), stages.index('story'))
+            translation = next(call for call in wb.demo_calls if call['stage'] == 'input_translation')
+            self.assertIn(decision['instruction'], translation['task'])
+            self.assertIn(decision['editorial']['camera_goal'], translation['task'])
+            story = next(call for call in wb.demo_calls if call['stage'] == 'story')
+            self.assertIn('Tend a small garden', story['task'])
+            self.assertNotIn(decision['instruction'], story['task'])
+            self.assertEqual(len(after['panels']), 2)
+
     def test_completed_saved_decision_reused_without_model_call(self):
         with tempfile.TemporaryDirectory() as temp:
             wb = DemoWorkbench(Path(temp))
@@ -46,14 +81,16 @@ class DirectorRecovery(unittest.TestCase):
             save(folder/'director_request.json', request)
             save(folder/'director_context.json', CONTEXT)
             save(target/'result.json', dict(http_status=200, finish_reason='stop'))
-            raw = json.dumps(DECISION)
+            saved_decision = dict(DECISION, instruction='Show 민수 picking up the can.',
+                                  reason_en='물을 주기 전에 집어 들어야 해요.')
+            raw = json.dumps(saved_decision, ensure_ascii=False)
             (target/'story.txt').write_text(raw, encoding='utf-8')
             job = dict(id='j123456789abc', project_id=project['id'], kind='direct', stage='director',
                        stage_folder='operations/o123456789abc/director', operation_id='o123456789abc', status='failed')
             archive_failed_stage(wb, job)
             with patch('engine.iterative_comic.generate', side_effect=AssertionError('Must reuse response')):
                 result = run_stage(wb, folder, 'director', request)
-            self.assertEqual(result, DECISION)
+            self.assertEqual(result, saved_decision)
             self.assertEqual((target/'story.txt').read_text(encoding='utf-8'), raw)
             self.assertFalse((folder/'recovery_attempts').exists())
             save(target/'result.json', dict(http_status=200, finish_reason=None))

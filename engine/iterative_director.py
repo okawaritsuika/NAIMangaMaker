@@ -111,7 +111,7 @@ def validate_decision(raw, context):
     if isinstance(raw.get('layout'), str):
         raw['layout'] = raw['layout'].strip().lower()
     if (not isinstance(raw.get('reason_ko'), str) or not re.search('[가-힣]', raw['reason_ko'])) and isinstance(raw.get('reason_en'), str):
-        raw['reason_ko'] = '판단 설명(영어 원문): ' + raw['reason_en']
+        raw['reason_ko'] = '판단 설명(원문): ' + raw['reason_en']
     if raw.get('action') == 'stop':
         instruction = raw.get('instruction')
         if instruction is not None and (not isinstance(instruction, str) or instruction.strip()):
@@ -135,10 +135,9 @@ def validate_decision(raw, context):
         value = raw.get(field)
         if not isinstance(value, str) or (not value.strip() and not (field == 'instruction' and should_end)):
             raise ValueError('자동 편집의 ' + field + ' 설명을 확인해 주세요.')
-    for field in ('instruction', 'reason_en'):
-        value = raw[field]
-        if value.strip() and (re.search('[가-힣ㄱ-ㅎㅏ-ㅣ]', value) or not re.search('[A-Za-z]', value)):
-            raise ValueError('다음 장면의 지시와 판단 원문은 영어로 작성해야 해요.')
+    # Language is not a decision constraint: names and model commentary may be
+    # Korean. expand() translates the composed instruction before the story call.
+    # Preserve the original decision so saved failures can also be resumed.
     if not re.search('[가-힣]', raw['reason_ko']):
         raise ValueError('자동 판단의 한국어 설명을 확인해 주세요.')
     if should_end:
@@ -166,8 +165,7 @@ def validate_decision(raw, context):
     notes = raw.get('editorial')
     if isinstance(notes, dict):
         clean = {key: value.strip() for key in ('page_question', 'visible_evidence', 'camera_goal', 'speech_reason')
-                 if isinstance((value := notes.get(key)), str) and len(value) <= 1200
-                 and not re.search('[가-힣ㄱ-ㅎㅏ-ㅣ]', value)}
+                 if isinstance((value := notes.get(key)), str) and len(value) <= 1200}
         if clean:
             result['editorial'] = clean
     return result
