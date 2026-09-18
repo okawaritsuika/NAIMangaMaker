@@ -2,8 +2,22 @@
  const box=document.getElementById('workHistory'),list=document.getElementById('historyList'),latest=document.getElementById('latestJob');let busy=false,timer=null;
  const names={create:'새 이야기',expand:'컷 추가',compose:'페이지 추가',edit_panel:'컷 수정',reroll_panel:'컷 다시 요청',render:'그림 생성',direct:'전개 판단'};
  const statuses={complete:'완료',failed:'실패',interrupted:'중단',queued:'대기',running:'진행 중'};
+ function diagnosticDetails(d){
+  const details=document.createElement('details'),summary=document.createElement('summary'),info=document.createElement('p'),advice=document.createElement('p');
+  details.className='job-diagnostic';summary.textContent='오류 상세 · 해결 방법';
+  info.textContent=d.stage_label+' · '+d.summary;advice.textContent=d.next_action;details.append(summary,info,advice);
+  if(d.detail){const detail=document.createElement('pre');detail.className='job-error-detail';detail.textContent=d.detail;details.append(detail)}
+  const actions=document.createElement('div'),copy=document.createElement('button'),feedback=document.createElement('span'),note=document.createElement('p');
+  const reportText='NAIMangaMaker 오류 정보\n'+JSON.stringify(d.report,null,2);
+  actions.className='run-actions';copy.type='button';copy.textContent='문의용 정보 복사';feedback.setAttribute('role','status');
+  copy.onclick=async()=>{try{await navigator.clipboard.writeText(reportText);feedback.textContent='복사했어요.'}catch{feedback.textContent='아래 복사 내용에서 직접 선택해 복사해 주세요.'}};
+  actions.append(copy,feedback);note.className='diagnostic-note';note.textContent='버전·실패 단계·오류 번호와 위치만 복사합니다. API 키·이야기 원문·위 상세 문구는 제외됩니다.';
+  const preview=document.createElement('details'),label=document.createElement('summary'),report=document.createElement('pre');
+  label.textContent='복사 내용 보기';report.textContent=reportText;preview.append(label,report);details.append(actions,note,preview);return details;
+ }
  function card(j,isLatest=false){const row=document.createElement('article'),title=document.createElement('strong'),message=document.createElement('p');title.textContent=(isLatest?'최근 작업 · ':'')+(names[j.kind]||j.kind)+' · '+(statuses[j.status]||j.status);message.textContent=j.message||'';row.append(title,message);
   if(j.status==='failed'||j.status==='interrupted'){
+   if(j.diagnostic)row.append(diagnosticDetails(j.diagnostic));
    const actions=document.createElement('div');actions.className='run-actions';
    for(const [label,restart,allowed] of [['실패 단계 재시도',false,j.retryable],['이 요청 처음부터',true,j.restartable]]){if(!allowed)continue;const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=async()=>{actions.querySelectorAll('button').forEach(n=>n.disabled=true);try{const result=await api('/api/story/jobs/'+j.id+'/retry','POST',{restart});await window.ComicMiddle.trackJob({id:result.job_id,project_id:j.project_id});await refresh()}catch(e){message.textContent=e.message;actions.querySelectorAll('button').forEach(n=>n.disabled=false)}};actions.append(b)}
    if(j.retry_job_id){const b=document.createElement('button');b.type='button';b.textContent='이어진 재시도 확인';b.onclick=()=>window.ComicMiddle.trackJob({id:j.retry_job_id,project_id:j.project_id});actions.append(b)}

@@ -264,7 +264,7 @@ class AutoBooks:
                                 self.persist(run)
                             else:
                                 run.update(status='failed', pause_requested=False,
-                                    message=job['message'] + ' 자동 복구를 완료하지 못했어요. 완료 결과와 원문은 보존했습니다. 요청을 수정하거나 다시 진행할지 확인해 주세요.')
+                                    message=job['message'] + ' 자동 복구로 해결하지 못했어요. 최근 작업의 오류 안내와 문의용 정보를 확인해 주세요.')
                                 self.persist(run)
                                 return
                         elif not run['pause_requested'] and run['message'] != job['message']:

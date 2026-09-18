@@ -31,6 +31,7 @@ def generate(request_path, output_path, key_env, api_key=None):
     usage = None
     first_token = None
     error_type = None
+    api_error = False
     status = None
     try:
         with urllib.request.urlopen(request, timeout=90) as response, (output_path / 'response.sse').open('wb') as raw:
@@ -46,6 +47,8 @@ def generate(request_path, output_path, key_env, api_key=None):
                 event = json.loads(data)
                 usage = event.get('usage') or usage
                 if event.get('error'):
+                    api_error = True
+                    (output_path / 'error.txt').write_text(json.dumps(event['error'], ensure_ascii=False).replace(key, '[REDACTED]'), encoding='utf-8')
                     raise RuntimeError('API returned an error event; see raw response')
                 for choice in event.get('choices', []):
                     piece = choice.get('delta', {}).get('content') or choice.get('text') or ''
@@ -65,7 +68,7 @@ def generate(request_path, output_path, key_env, api_key=None):
         text = ''.join(parts)
         (output_path / 'story.txt').write_text(text, encoding='utf-8')
         summary = dict(endpoint=ENDPOINT, model=payload['model'], http_status=status,
-                       error_type=error_type, finish_reason=finish_reason, usage=usage,
+                       error_type=error_type, api_error=api_error, finish_reason=finish_reason, usage=usage,
                        seconds=round(time.monotonic() - start, 2), first_token_seconds=first_token,
                        characters=len(text), words=len(text.split()))
         (output_path / 'result.json').write_text(json.dumps(summary, indent=2), encoding='utf-8')

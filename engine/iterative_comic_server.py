@@ -12,6 +12,7 @@ from urllib.parse import unquote, urlparse, parse_qs
 
 from .iterative_comic import Workbench, ROOT, identity, save, read, now
 from .iterative_recovery import RecoverySession, IncompleteResponseError, archive_failed_stage, conflict, digest, disk_project, recoverable
+from .job_diagnostics import diagnose, failure_message
 
 API_VERSION = 'editing-v1'
 
@@ -96,6 +97,8 @@ class App:
             value['restartable'] = bool(candidate and not reason)
             value['retryable'] = value['restartable']
             folder = self.response_folder(job)
+            if job.get('status') in ('failed', 'interrupted'):
+                value['diagnostic'] = job.get('diagnostic') or diagnose(job, folder)
             raw = (folder / 'story.txt') if folder else None
             available = bool(folder and folder.exists() and any(folder.iterdir()))
             value['raw'] = dict(available=available, stage=job.get('stage'),
@@ -132,6 +135,8 @@ class App:
                             if (folder / name).exists():
                                 raw = (folder / name).read_text(encoding='utf-8', errors='replace')
                                 break
+                    if (folder / 'error.txt').exists():
+                        raw += '\n\nAPI 오류 응답:\n' + (folder / 'error.txt').read_text(encoding='utf-8', errors='replace')
                 return dict(job_id=value['id'], stage=value.get('stage'), text=raw, result=result,
                             files=[p.name for p in folder.iterdir() if p.is_file()] if folder and folder.exists() else [])
             result = item(job)
@@ -251,14 +256,15 @@ class App:
                     job.update(status='complete', message='완료했어요.', project_id=project['id'],
                                result_project_sha256=digest(disk_project(wb, pid)))
             except Exception as exc:
-                message = ('응답 JSON 형식이 올바르지 않아요. 원문을 보존했어요. ' + str(exc)) if isinstance(exc, json.JSONDecodeError) else str(exc) if isinstance(exc, (ValueError, InterruptedError, FileNotFoundError)) else '요청을 완료하지 못했어요. 받은 원문은 보존했어요.'
+                diagnostic = diagnose(job, self.response_folder(job), exc)
+                message = failure_message(diagnostic, exc)
                 with self.lock:
                     if job['kind'] in ('render','studio_render') and session.pending is not None:
                         try:
                             session.flush(success=False)
                         except ValueError as guard_error:
                             message = str(guard_error)
-                    job.update(status='failed', message=message, error=message, error_type=type(exc).__name__)
+                    job.update(status='failed', message=message, error=message, error_type=type(exc).__name__, diagnostic=diagnostic)
                     job['automatic_retry_pending'] = bool(isinstance(exc,(json.JSONDecodeError, IncompleteResponseError))
                         and not job.get('auto_run_id') and job['kind'] not in ('render','studio_render')
                         and job.get('automatic_retries',0)<2)
