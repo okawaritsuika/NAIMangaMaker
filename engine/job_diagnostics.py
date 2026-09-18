@@ -19,7 +19,7 @@ def diagnose(job, folder=None, exc=None):
             try:
                 value = json.loads((folder / name).read_text(encoding='utf-8'))
                 if isinstance(value, dict):
-                    result.update({key: value[key] for key in ('http_status', 'finish_reason', 'error_type', 'api_error') if key in value})
+                    result.update({key: value[key] for key in ('http_status', 'finish_reason', 'error_type', 'api_error', 'model', 'requested_model', 'fallback_reason') if key in value})
             except (OSError, ValueError):
                 pass
     error_type = identifier(type(exc).__name__ if exc else job.get('error_type') or result.get('error_type'))
@@ -84,6 +84,11 @@ def diagnose(job, folder=None, exc=None):
                   automatic_retries=job.get('automatic_retries', 0) if type(job.get('automatic_retries', 0)) is int else 0)
     if isinstance(exc, json.JSONDecodeError):
         report['json_position'] = dict(line=exc.lineno, column=exc.colno, character=exc.pos)
+    for key in ('model', 'requested_model'):
+        if result.get(key) in ('glm-4-6', 'xialong-v1'):
+            report[key] = result[key]
+    if result.get('fallback_reason') == 'model_not_allowed_for_tier':
+        report['fallback_reason'] = result['fallback_reason']
     if type(getattr(exc, 'errno', None)) is int:
         report['os_error_number'] = exc.errno
     # The existing validation explanation is local-only, separate from copying.
