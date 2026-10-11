@@ -53,6 +53,7 @@ def _summary(path):
     status = ('draft' if not pages else 'in_progress' if rendered != len(pages) else
               'complete' if ended and panel_ids <= assigned else 'rendered')
     return dict(id=project_id, title=title or '제목 없는 작품', updated=updated, ended=ended,
+                completed=value.get('completed') is True,
                 panel_count=len(panels), page_count=len(pages), rendered_count=rendered,
                 cover_url=cover, status=status)
 

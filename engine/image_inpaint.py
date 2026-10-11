@@ -15,6 +15,7 @@ from .forced_infill_delivery import payload, save, read, sha
 from .image_studio import artifact, check_source
 from .iterative_page_rendering import _page, _set_overrides
 from .iterative_comic import identity, now
+from .image_preferences import MEDIUM_MODEL
 
 
 def png(image):
@@ -77,7 +78,8 @@ def blend_mask(mask, radius):
 
 def request_body(settings, source, mask, strength, legacy=False):
     body=payload(settings)
-    body.update(model='nai-diffusion-5-full-inpainting',action='infill')
+    body.update(model=('nai-diffusion-5-full-medium-inpainting' if body['model']==MEDIUM_MODEL
+                       else 'nai-diffusion-5-full-inpainting'),action='infill')
     params=body['parameters']
     params.update(image=base64.b64encode(png(source.convert('RGB'))).decode(),mask=base64.b64encode(png(mask)).decode(),
                   strength=strength,noise=0,extra_noise_seed=params['seed'],add_original_image=True,

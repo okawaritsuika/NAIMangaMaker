@@ -43,17 +43,26 @@
  by('resetCurrentSettings').onclick=()=>{if(!currentSettingsProject)return;try{localStorage.removeItem(currentDraftKey(currentSettingsProject.id))}catch{}window.updateCurrentStorySettings(currentSettingsProject)};
  function mode(){const auto=by('storyAuto').checked;by('autoFields').hidden=!auto;by('autoFields').querySelectorAll('input').forEach(n=>n.disabled=!auto);by('storyCount').disabled=auto;by('countHint').textContent=auto?'자동 완성은 페이지 목표에 맞춰 첫 컷부터 구성합니다.':'원하는 컷 수를 입력하세요. 많은 컷은 이어서 나눠 만듭니다.';by('storySubmit').textContent=auto?'자동으로 이야기 완성':'첫 이야기 만들기'}
  function draft(){const data={};for(const id of fieldIds)data[id]=by(id).value;data.storyAuto=by('storyAuto').checked;data.storyImages=by('storyImages').checked;data.characters=actors();return data}
+ const initialDraft=JSON.stringify(draft());
  function saveDraft(){const data=draft();by('draftStatus').textContent='설정 저장 중…';draftQueue=draftQueue.catch(()=>{}).then(()=>api('/api/workspace/draft','POST',data)).then(()=>{by('draftStatus').textContent='설정이 자동 저장됩니다.'}).catch(()=>{by('draftStatus').textContent='설정을 저장하지 못했습니다. 다시 입력하거나 재시도해 주세요.'});return draftQueue}
  function scheduleDraft(){if(!ready)return;clearTimeout(draftTimer);draftTimer=setTimeout(saveDraft,400)}
+ by('resetStory').onclick=()=>{
+  if(!ready||by('resetStory').disabled)return;
+  const changed=by('storyActors').children.length>0||JSON.stringify(draft())!==initialDraft;
+  if(changed&&!confirm('새 이야기 시작에 입력한 내용과 인물, 설정이 초기화됩니다.\n만화 일람에 저장된 작품은 삭제되지 않으며, 현재 만화도 그대로 유지됩니다.\n초기화할까요?'))return;
+  clearTimeout(draftTimer);form.reset();
+  for(const row of by('storyActors').children)row.characterLibrary?.destroy();by('storyActors').replaceChildren();
+  by('addActor').disabled=false;updateActorCount();mode();saveDraft();by('storySeed').focus();
+ };
  function brief(){return {seed:by('storySeed').value.trim(),direction:by('storyDirection').value.trim(),place:by('storyPlace').value.trim(),action_hint:by('storyAction').value.trim(),state_change:by('storyState').value.trim(),count:Number(by('storyCount').value),dialogue:by('storyDialogue').value,characters:actors(),generation_options:{translation_mode:by('storyTranslation').value,concise_prompts:true}}}
  function showError(message){by('storyProgress').hidden=false;by('storyProgress').className='story-progress failed';by('runMessage').textContent=message;by('runTitle').textContent='진행을 확인해 주세요.';by('runPause').hidden=true;by('runResume').hidden=!active;by('runRaw').hidden=!active?.current_job_id}
  let middleBusy=false;
- function lock(value){window.ComicMiddle?.setBusy(value);by('currentSettingsFields').disabled=value||middleBusy;by('storySubmit').disabled=value||middleBusy;by('storyProjects').disabled=value||middleBusy}
+ function lock(value){window.ComicMiddle?.setBusy(value);by('currentSettingsFields').disabled=value||middleBusy;by('storySubmit').disabled=value||middleBusy;by('resetStory').disabled=!ready||value||middleBusy;by('storyProjects').disabled=value||middleBusy}
  function projects(list){const select=by('storyProjects');select.replaceChildren(new Option('저장된 이야기',''));for(const p of list)select.add(new Option(p.title||'새 이야기',p.id));select.value=projectId}
  async function loadProject(pid,force=false){if(!pid)return;const p=await api('/api/story/projects/'+pid);projectId=pid;by('storyProjects').value=pid;const revision=pid+':'+p.revision+':'+p.updated;if(!force&&loadedRevision===revision)return;loadedRevision=revision;window.ComicMiddle.render(p);}
 
  async function poll(){if(!active)return;clearTimeout(timer);try{const run=await api('/api/story/'+active.type+'/'+active.id);active={...run,type:active.type};by('storyProgress').hidden=false;const running=['running','queued'].includes(run.status);by('storyProgress').className='story-progress'+(['failed','interrupted'].includes(run.status)?' failed':'');by('runTitle').textContent=active.type==='starts'?'첫 이야기 · '+(run.progress?.panels||0)+' / '+run.target_panels+'컷':'자동 완성 · '+(run.progress?.pages||0)+' / '+(run.progress?.target_pages||'?')+'페이지';by('runMessage').textContent=run.message||run.status;by('runPause').hidden=!running;by('runPause').disabled=!!run.pause_requested;by('runResume').hidden=running||run.status==='complete';by('runRaw').hidden=!run.current_job_id;lock(running);if(run.project_id){try{await loadProject(run.project_id)}catch(e){if(run.status==='complete')throw e}}if(running){timer=setTimeout(poll,1500)}else{const ws=await api('/api/workspace');projects(ws.projects)}}catch(e){showError(e.message+' 저장된 결과는 유지됩니다. 이어서 진행으로 다시 확인할 수 있습니다.');lock(false)}}
- document.addEventListener('middle-busy',e=>{middleBusy=e.detail;const busy=middleBusy||['running','queued'].includes(active?.status);by('currentSettingsFields').disabled=busy;by('storySubmit').disabled=busy;by('storyProjects').disabled=busy});
+ document.addEventListener('middle-busy',e=>{middleBusy=e.detail;const busy=middleBusy||['running','queued'].includes(active?.status);by('currentSettingsFields').disabled=busy;by('storySubmit').disabled=busy;by('resetStory').disabled=!ready||busy;by('storyProjects').disabled=busy});
  document.addEventListener('middle-refresh',async e=>{await loadProject(e.detail,true)});
  window.addEventListener('focus',()=>{if(ready&&projectId&&!middleBusy&&!['running','queued'].includes(active?.status))loadProject(projectId,true).catch(e=>showError(e.message));});
  form.addEventListener('input',scheduleDraft);form.addEventListener('change',scheduleDraft);by('storyAuto').addEventListener('change',mode);by('addActor').onclick=()=>{actor();scheduleDraft()};

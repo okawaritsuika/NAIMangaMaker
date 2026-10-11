@@ -166,6 +166,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200,{'saved':True})
             if self.path.startswith('/api/story/') and self.command=='POST':
                 app=self.server.stories()
+                match=re.fullmatch(r'/api/story/projects/(p[0-9a-f]{12})/completion',self.path)
+                if match:return self.reply(200,app.workbench.public(app.mutation(match[1],'set_completion',data)))
                 match=re.fullmatch(r'/api/story/projects/(p[0-9a-f]{12})/delete',self.path)
                 if match:return self.reply(200,app.delete_project(match[1],data))
                 match=re.fullmatch(r'/api/story/projects/(p[0-9a-f]{12})/panels/([a-z][0-9a-f]{12})/(edit|reroll|restore|delete)',self.path)
@@ -211,8 +213,8 @@ class Handler(BaseHTTPRequestHandler):
                         with app.lock:settings=app.workbench.preview_prompt(match[1],match[2])
                         from engine.image_preferences import validate
                         override=data.get('image_settings',{})
-                        validate(override)
-                        settings.update({k:override[k] for k in ('width','height','steps') if k in override})
+                        override=validate(override)
+                        settings.update({k:override[k] for k in ('width','height','steps','model') if k in override})
                         return self.reply(200,assess(settings,subscription(image_key)))
                     return self.reply(200,app.job('render',data,match[1],match[2]))
                 match=re.fullmatch(r'/api/story/jobs/(j[0-9a-f]{12})/retry',self.path)

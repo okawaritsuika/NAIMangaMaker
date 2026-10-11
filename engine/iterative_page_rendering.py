@@ -53,7 +53,7 @@ class RenderingMixin:
                 for i, (positive, negative, actor) in enumerate(zip(positives, negatives, audit['actors']))],
             **{key: params[key] for key in ('seed', 'width', 'height', 'steps', 'scale', 'sampler')},
             model=body['model'], action=body['action'], n_samples=params['n_samples'],
-            cfg_rescale=params.get('cfg_rescale'), noise_schedule=params.get('noise_schedule'),
+            cfg_rescale=params.get('cfg_rescale', 0), noise_schedule=params.get('noise_schedule'),
             render_version=audit['render_version'],
             source_sha256=audit['prompt_source_sha256'],
             overrides_applied=bool(audit['prompt_overrides_applied']), overrides_stale=stale)

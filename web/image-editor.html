@@ -102,7 +102,7 @@ main.shell{max-width:1900px;padding:0 20px}#heading,#draftLine{display:none!impo
           <section id="promptCard" class="box box-pad"><div class="section-head"><h2><span class="section-number">01</span>전체 프롬프트</h2><span class="note">English prompt</span></div><label class="field" for="mainPrompt">장면 · 배경 · 컷 배치</label><textarea id="mainPrompt" class="prompt" rows="9" data-tag-input spellcheck="false"></textarea><p class="hint">불러온 컷 배치와 장면을 직접 조정할 수 있습니다. 인물별 배치는 가운데 위치 조정에서 변경합니다.</p><button id="rebuildDefaults" type="button" class="small spaced">기본 그림체로 전체 프롬프트 다시 작성</button><p class="hint">현재 전체 프롬프트의 수동 수정은 새로 작성됩니다. 저장된 네거티브와 수치도 불러옵니다. 인물별 입력은 유지합니다.</p></section>
           <section class="box box-pad"><h2><span class="section-number">02</span>네거티브 프롬프트</h2><label class="field" for="negativePrompt">그림에서 피할 요소</label><textarea id="negativePrompt" class="prompt" rows="4" data-tag-input spellcheck="false"></textarea></section>
           <section id="charactersSection" class="box box-pad"><div class="section-head"><h2><span class="section-number">03</span>인물별 프롬프트</h2><span id="characterCount" class="note"></span></div><p class="hint">같은 인물도 컷마다 다른 프롬프트를 가질 수 있습니다. 위치 조정에서 번호를 선택해 인물 배치를 바꿀 수 있습니다.</p><div id="characterList" class="character-list"></div></section>
-          <section class="box box-pad"><div class="section-head"><h2><span class="section-number">04</span>생성 수치</h2><button id="loadDefaults" class="small" type="button">기본 수치 불러오기</button></div><div class="three"><div><label class="field" for="steps">Steps · 생성 단계</label><input id="steps" type="number" step="1" required></div><div><label class="field" for="scale">CFG · 프롬프트 반영</label><input id="scale" type="number" step="0.1" required></div><div><label class="field" for="sampler">샘플러</label><select id="sampler" required></select></div></div><label class="field" for="resolutionPreset">해상도 프리셋</label><select id="resolutionPreset"><option value="832x1216">세로 · 832 × 1216</option><option value="1216x832">가로 · 1216 × 832</option><option value="1024x1024">정사각 · 1024 × 1024</option><option value="custom">직접 입력</option></select><div class="two"><div><label class="field" for="width">직접 입력 · 가로 px</label><input id="width" type="number" step="64" required></div><div><label class="field" for="height">직접 입력 · 세로 px</label><input id="height" type="number" step="64" required></div></div><p id="sizeHint" class="hint">이미지 크기는 64px 단위로 설정합니다. 인물의 상대 배치 위치는 유지됩니다.</p><p class="hint"><strong>Opus Anlas 미사용 범위</strong> · Opus 구독, 이미지 1장, 1,048,576픽셀 이하·28 Steps 이하일 때 적용됩니다.</p><p id="opusRangeStatus" class="hint" role="status" aria-live="polite"></p><p class="hint">V5 사용량 제한은 별도로 적용됩니다. 실제 비용은 생성 직전에 확인합니다.</p><details class="negative"><summary>상세 생성 수치</summary><div class="two"><div><label class="field" for="cfg_rescale">CFG Rescale</label><input id="cfg_rescale" type="number" step="0.01" required></div><div><label class="field" for="noise_schedule">노이즈 스케줄</label><select id="noise_schedule" required></select></div></div><p class="hint">불러온 값이 기본으로 유지됩니다.</p></details><div id="seedFields"><label class="seed-toggle"><input id="randomSeed" type="checkbox" checked>생성할 때마다 무작위 시드 사용</label><label class="field" for="seed">고정 시드</label><input id="seed" type="number" min="0" max="4294967295" step="1" disabled placeholder="0 ~ 4294967295"><p class="hint">같은 시드는 설정을 비교할 때 유용합니다. 시드가 같아도 프롬프트를 바꾸면 그림이 달라집니다.</p></div></section>
+          <section class="box box-pad"><div class="section-head"><h2><span class="section-number">04</span>생성 수치</h2><button id="loadDefaults" class="small" type="button">기본 수치 불러오기</button></div><label class="field" for="model">이미지 모델</label><select id="model" required></select><p id="modelHint" class="hint" hidden>Medium은 14 Steps · Euler Ancestral · Karras로 생성합니다. CFG Rescale은 적용되지 않습니다. 네거티브는 고정 프리셋을 사용하며 전체·인물별 직접 입력은 적용되지 않습니다. 입력 내용은 보관되며 High에서 다시 사용할 수 있습니다.</p><div class="three"><div><label class="field" for="steps">Steps · 생성 단계</label><input id="steps" type="number" step="1" required></div><div><label class="field" for="scale">CFG · 프롬프트 반영</label><input id="scale" type="number" step="0.1" required></div><div><label class="field" for="sampler">샘플러</label><select id="sampler" required></select></div></div><label class="field" for="resolutionPreset">해상도 프리셋</label><select id="resolutionPreset"><option value="832x1216">세로 · 832 × 1216</option><option value="1216x832">가로 · 1216 × 832</option><option value="1024x1024">정사각 · 1024 × 1024</option><option value="custom">직접 입력</option></select><div class="two"><div><label class="field" for="width">직접 입력 · 가로 px</label><input id="width" type="number" step="64" required></div><div><label class="field" for="height">직접 입력 · 세로 px</label><input id="height" type="number" step="64" required></div></div><p id="sizeHint" class="hint">이미지 크기는 64px 단위로 설정합니다. 인물의 상대 배치 위치는 유지됩니다.</p><p class="hint"><strong>Opus Anlas 미사용 범위</strong> · Opus 구독, 이미지 1장, 1,048,576픽셀 이하·28 Steps 이하일 때 적용됩니다.</p><p id="opusRangeStatus" class="hint" role="status" aria-live="polite"></p><p class="hint">V5 사용량 제한은 별도로 적용됩니다. 실제 비용은 생성 직전에 확인합니다.</p><details class="negative"><summary>상세 생성 수치</summary><div class="two"><div><label class="field" for="cfg_rescale">CFG Rescale</label><input id="cfg_rescale" type="number" step="0.01" required></div><div><label class="field" for="noise_schedule">노이즈 스케줄</label><select id="noise_schedule" required></select></div></div><p class="hint">불러온 값이 기본으로 유지됩니다.</p></details><div id="seedFields"><label class="seed-toggle"><input id="randomSeed" type="checkbox" checked>생성할 때마다 무작위 시드 사용</label><label class="field" for="seed">고정 시드</label><input id="seed" type="number" min="0" max="4294967295" step="1" disabled placeholder="0 ~ 4294967295"><p class="hint">같은 시드는 설정을 비교할 때 유용합니다. 시드가 같아도 프롬프트를 바꾸면 그림이 달라집니다.</p></div></section>
         </div>
       </fieldset>
       <div class="actions"><div class="row"><button id="resetDraft" type="button" disabled>불러온 값으로 되돌리기</button><button id="submitButton" class="primary" type="submit" disabled>미리보기 생성</button></div><p id="submitHint" class="hint">미리보기 생성은 실제 NovelAI 이미지 요청 1회를 사용합니다. 적용하기 전까지 현재 페이지는 그대로입니다.</p><p id="draftLine" class="draft-line" hidden></p><button id="checkProgress" class="small spaced" type="button" hidden>생성 상태 다시 확인</button></div>
@@ -166,7 +166,7 @@ if(!query.has('project') && !query.has('page')) {
 const settingsMode = location.pathname.replace(/\/$/, '') === '/image-settings';
 const state = {projectId:query.get('project') || '',pageId:query.get('page') || '',ready:false,busy:false,defaults:null,base:null,studio:null,characters:[],characterHandles:[],history:[],candidateId:null,view:'original',pending:null,pollTimer:null,source:'',storageWarning:false};
 const numericKeys = ['steps','scale','cfg_rescale','width','height'];
-const settingKeys = [...numericKeys,'sampler','noise_schedule','color_mode'];
+const settingKeys = [...numericKeys,'model','sampler','noise_schedule','color_mode'];
 const colorLabel=document.createElement('label');colorLabel.textContent='색상';const colorSelect=document.createElement('select');colorSelect.id='color_mode';colorSelect.append(new Option('프롬프트대로','prompt'),new Option('흑백 · 결과 색 제거','monochrome'));colorLabel.append(colorSelect);$('sampler').parentElement.before(colorLabel);
 const resolutionPresets = {'832x1216':[832,1216],'1216x832':[1216,832],'1024x1024':[1024,1024]};
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -192,6 +192,7 @@ function controls() {
   inpaintEditor?.update();
   for(const id of ['width','height','resolutionPreset','noise_schedule']) $(id).disabled=Boolean(inpaintEditor?.active);
   if(inpaintEditor?.active) { const size=inpaintEditor.size();$('width').value=size.width;$('height').value=size.height;$('noise_schedule').value='karras'; }
+  modelControls();
   updateResolution();
   drawPositions();
   $('formFields').disabled = !state.ready || state.busy;
@@ -228,9 +229,20 @@ function addOptions(id, values, selected) {
   for(const value of all) { const option = node('option',value); option.value = value; select.append(option); }
   if(selected !== undefined) select.value = selected;
 }
+function modelLabel(value) { return (state.defaults?.models || []).find(row => row.id === value)?.label || value; }
+function modelControls() {
+  const medium = $('model').value === 'nai-diffusion-5-full-medium';
+  if(medium) { $('steps').value = '14'; $('sampler').value = 'k_euler_ancestral'; $('cfg_rescale').value = '0'; $('noise_schedule').value = 'karras'; }
+  for(const key of ['steps','sampler','cfg_rescale','noise_schedule','negativePrompt']) $(key).disabled = medium || (key === 'noise_schedule' && Boolean(inpaintEditor?.active));
+  for(const [index] of state.characters.entries()) $('char_' + index + '_negative').disabled = medium;
+  $('modelHint').hidden = !medium;
+  $('modelLabel').textContent = modelLabel($('model').value) || 'NovelAI';
+}
 function configureDefaults(data) {
   state.defaults = data;
-  $('modelLabel').textContent = data.model || 'NovelAI · 불러온 모델';
+  const model = $('model').value || data.settings.model || data.model;
+  $('model').replaceChildren(...data.models.map(row => { const option = node('option',row.label); option.value = row.id; return option; }));
+  $('model').value = model;
   for(const key of numericKeys) { const limits = (data.limits || {})[key] || {}; for(const attr of ['min','max','step']) if(limits[attr] !== undefined) $(key).setAttribute(attr,String(limits[attr])); }
   const maxPixels = data.max_pixels || (data.limits || {}).max_pixels;
   if(maxPixels) $('sizeHint').textContent = '가로·세로는 64px 단위, 전체 ' + Number(maxPixels).toLocaleString('ko-KR') + 'px 이내입니다. 인물의 상대 배치 위치는 유지됩니다.';
@@ -272,6 +284,7 @@ function setForm(value) {
   $('stylePrompt').value = value.style_prompt || '';
   $('mainPrompt').value = value.prompt || '';
   $('negativePrompt').value = value.negative_prompt || '';
+  $('model').value = value.model || 'nai-diffusion-5-full';
   for(const key of numericKeys) if(value[key] !== undefined && value[key] !== null) $(key).value = String(value[key]);
   addOptions('sampler',state.defaults.samplers,value.sampler);
   addOptions('noise_schedule',state.defaults.noise_schedules,value.noise_schedule);
@@ -314,7 +327,7 @@ function recoverDraft() {
 function settingPayload() {
   const result = {};
   for(const key of numericKeys) { if($(key).value.trim() === '') throw new Error('생성 수치를 모두 입력해 주세요.'); const number = Number($(key).value); if(!Number.isFinite(number)) throw new Error('생성 수치에는 숫자를 입력해 주세요.'); const limit = (state.defaults.limits || {})[key] || {}; if((limit.min !== undefined && number < limit.min) || (limit.max !== undefined && number > limit.max)) throw new Error(key + ' 값을 허용 범위 안에서 입력해 주세요.'); if(['steps','width','height'].includes(key) && !Number.isInteger(number)) throw new Error('생성 단계와 가로·세로는 정수로 입력해 주세요.'); result[key] = number; }
-  for(const key of ['sampler','noise_schedule','color_mode']) result[key] = $(key).value;
+  for(const key of ['model','sampler','noise_schedule','color_mode']) result[key] = $(key).value;
   if(result.width % 64 || result.height % 64) throw new Error('가로와 세로는 64px 단위로 입력해 주세요.');
   const maximum = state.defaults.max_pixels || (state.defaults.limits || {}).max_pixels;
   if(maximum && result.width * result.height > maximum) throw new Error('전체 이미지 크기가 ' + Number(maximum).toLocaleString('ko-KR') + 'px을 넘습니다. 가로나 세로를 줄여 주세요.');
@@ -330,7 +343,7 @@ function renderPayload() {
 function engineLabel(row) {
   if(row?.engine === 'novelai_monochrome') return 'NAI 흑백 · 원본 별도 보존';
   if(row?.engine === 'novelai_inpaint') return 'NAI 부분 수정';
-  return row && row.engine === 'gpt_image_edit' ? 'GPT 이미지 보정' : row && row.engine === 'novelai' ? 'NAI 원본' : '생성 결과';
+  return row && row.engine === 'gpt_image_edit' ? 'GPT 이미지 보정' : row && row.engine === 'novelai' ? 'NAI 원본' + (row.prompt?.model === 'nai-diffusion-5-full-medium' ? ' · Medium' : ' · High') : '생성 결과';
 }
 function renderPreview() {
   const row = state.view === 'candidate' ? selectedCandidate() : state.history.find(item => item.selected);
@@ -380,14 +393,13 @@ function acceptStudio(data, {replaceForm=false}={}) {
   state.studio = data; state.history = data.history || [];
   $('contextTitle').textContent = data.title || '페이지 이미지 편집';
   if(data.defaults) configureDefaults(data.defaults);
-  if(data.prompt && data.prompt.model) $('modelLabel').textContent = data.prompt.model;
   if(replaceForm) { state.source = data.source_sha256; state.base = {...copy(data.prompt),random_seed:true}; setForm(state.base); }
   else if(state.source !== data.source_sha256) { $('sourceWarning').hidden = false; $('sourceWarning').textContent = '페이지의 장면 또는 설정이 바뀌었어요. 입력은 유지했습니다. 최신 페이지를 다시 불러온 뒤 생성하거나 적용해 주세요.'; }
   if(data.stale && state.source === data.source_sha256) { $('sourceWarning').hidden = false; $('sourceWarning').textContent = '현재 그림은 페이지 수정 전의 결과입니다. 프롬프트는 최신 페이지 내용으로 불러왔어요. 새 미리보기를 생성해 확인할 수 있습니다.'; }
   renderHistory();
 }
 async function refreshStudio() { const data = await api(editorPath()); acceptStudio(data); return data; }
-function savedSummary() { const value = state.defaults.settings; $('savedSummary').textContent = '현재 저장값\n' + value.width + ' × ' + value.height + ' · Steps ' + value.steps + ' · CFG ' + value.scale + '\n' + value.sampler; }
+function savedSummary() { const value = state.defaults.settings; $('savedSummary').textContent = '현재 저장값\n' + modelLabel(value.model) + '\n' + value.width + ' × ' + value.height + ' · Steps ' + value.steps + ' · CFG ' + value.scale + '\n' + value.sampler; }
 async function saveSettings() {
   const settings = {...settingPayload(),style_prompt:$('stylePrompt').value,negative_prompt:$('negativePrompt').value};
   busy(true); say('기본 설정을 저장하고 있어요.','busy');

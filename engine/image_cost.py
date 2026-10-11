@@ -18,7 +18,11 @@ def subscription(api_key):
         remaining_percent=(0 if usage.get('isNegative') else percent) if type(percent) in (int,float) else None)
 
 def assess(settings, account):
+    from .image_preferences import DEFAULT_MODEL, MEDIUM_MODEL
     width,height,steps=(settings[k] for k in ('width','height','steps'))
+    model=settings.get('model',DEFAULT_MODEL)
+    if model==MEDIUM_MODEL:
+        steps=14
     reasons=[]
     if width*height>FREE_PIXELS:
         reasons.append(f'해상도 {width}×{height} = {width*height:,}픽셀로 Anlas 미사용 상한 1,048,576픽셀을 넘습니다.')
@@ -35,7 +39,7 @@ def assess(settings, account):
              '이미지 잔량이 5% 이하라 기존 잔량 보호 규칙에 따라 생성이 중지됩니다.' if blocked else
              '이 설정으로 생성하면 Anlas가 사용됩니다.' if reasons else
              '현재 계정과 설정은 Anlas 미사용 범위입니다. V5 이미지 사용량은 차감됩니다.')
-    return dict(width=width,height=height,steps=steps,pixels=width*height,
+    return dict(width=width,height=height,steps=steps,model=model,pixels=width*height,
         requires_confirmation=bool(reasons) and not blocked,can_generate=not blocked,
         anlas_status='unknown' if unknown else 'paid' if reasons else 'free',
         message=message,reasons=reasons,remaining_percent=remaining,
@@ -52,9 +56,9 @@ def ensure_allowance(api_key, *, settings, confirmed=False):
 def preview(workbench,pid,gid,data):
     from .image_preferences import validate
     current=workbench.preview_prompt(pid,gid)
-    settings={k:current[k] for k in ('width','height','steps')}
+    settings={k:current[k] for k in ('width','height','steps','model')}
     override=data.get('image_settings',{})
-    validate(override)
+    override=validate(override)
     settings.update({k:override[k] for k in settings if k in override})
     validate(settings)
     try:

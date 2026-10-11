@@ -99,7 +99,19 @@ class Workbench(EditMixin):
             panels=[{k: row.get(k) for k in ('id', 'description_ko', 'background_ko', 'dialogues_ko', 'camera_ko', 'state_ko', 'origin', 'display_language', 'dialogue_language')} | dict(
                 history=[{k: v['panel'].get(k) for k in ('description_ko', 'background_ko', 'dialogues_ko', 'camera_ko', 'state_ko', 'display_language', 'dialogue_language')} | dict(saved_at=v['saved_at'], reason=v['reason'])
                          for v in p.get('panel_versions', {}).get(row['id'], [])]) for row in p['panels']],
-            pages=p['pages'], deleted_pages=p.get('deleted_pages', []), generation_options=options(p.get('generation_options')))
+            pages=p['pages'], deleted_pages=p.get('deleted_pages', []), generation_options=options(p.get('generation_options')),
+            completed=p.get('completed') is True)
+
+    def set_completion(self, project_id, payload):
+        completed = payload.get('completed')
+        if type(completed) is not bool:
+            raise ValueError('완료 상태를 올바르게 선택해 주세요.')
+        project = self.load(project_id)
+        if (project.get('completed') is True) != completed:
+            project['completed'] = completed
+            project['revision'] += 1
+            self.commit(project)
+        return project
 
     def operation(self, project_id, payload):
         from .iterative_recovery import current_session

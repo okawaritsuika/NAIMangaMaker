@@ -7,11 +7,15 @@ import unicodedata
 
 SAMPLERS = ['k_euler_ancestral', 'k_euler', 'k_dpmpp_2s_ancestral', 'k_dpmpp_2m', 'k_dpmpp_sde', 'ddim_v3']
 NOISE_SCHEDULES = ['native', 'karras', 'exponential', 'polyexponential']
+DEFAULT_MODEL = 'nai-diffusion-5-full'
+MEDIUM_MODEL = 'nai-diffusion-5-full-medium'
+MODELS = [dict(id=DEFAULT_MODEL, label='NovelAI Diffusion V5 Full · High', effort='high'),
+          dict(id=MEDIUM_MODEL, label='NovelAI Diffusion V5 Full · Medium', effort='medium')]
 LIMITS = dict(steps=dict(min=1, max=50), scale=dict(min=0, max=10), cfg_rescale=dict(min=0, max=1),
               width=dict(min=256, max=2048, step=64), height=dict(min=256, max=2048, step=64))
 MAX_PIXELS = 3145728
 NUMERIC = ('steps', 'scale', 'cfg_rescale', 'width', 'height')
-FIELDS = (*NUMERIC, 'sampler', 'noise_schedule', 'style_prompt', 'negative_prompt', 'color_mode')
+FIELDS = (*NUMERIC, 'model', 'sampler', 'noise_schedule', 'style_prompt', 'negative_prompt', 'color_mode')
 
 
 def original_defaults():
@@ -20,13 +24,15 @@ def original_defaults():
     style = ref['prompt'].split(', color, fully clothed,', 1)[0] + ', color, fully clothed'
     style = style.replace('detailed fantasy background', 'detailed background')
     return dict(**{k: ref[k] for k in (*NUMERIC, 'sampler', 'noise_schedule')},
-                style_prompt=style, negative_prompt=ref['uc'], color_mode='prompt')
+                model=DEFAULT_MODEL, style_prompt=style, negative_prompt=ref['uc'], color_mode='prompt')
 
 
 def validate(value, *, base=None):
     if not isinstance(value, dict) or set(value) - set(FIELDS):
         raise ValueError('이미지 설정 항목을 확인해 주세요.')
     result = dict(copy.deepcopy(base) if base is not None else {}, **copy.deepcopy(value))
+    if 'model' in result and result['model'] not in (DEFAULT_MODEL, MEDIUM_MODEL):
+        raise ValueError('지원하는 NovelAI 이미지 모델을 선택해 주세요.')
     if result.get('color_mode','prompt') not in ('prompt','monochrome'):
         raise ValueError('색상 모드는 프롬프트대로 또는 흑백을 선택해 주세요.')
     for key, limit in LIMITS.items():
@@ -46,6 +52,8 @@ def validate(value, *, base=None):
     for key in ('style_prompt', 'negative_prompt'):
         if key in result and (not isinstance(result[key], str) or len(result[key]) > 30000):
             raise ValueError('프롬프트는 30,000자 이내의 문자열이어야 해요.')
+    if result.get('model') == MEDIUM_MODEL:
+        result.update(steps=14, sampler='k_euler_ancestral', cfg_rescale=0, noise_schedule='karras')
     return result
 
 
@@ -60,7 +68,8 @@ def load(workbench):
 
 
 def public(workbench):
-    return dict(settings=load(workbench), model='nai-diffusion-5-full', limits=copy.deepcopy(LIMITS),
+    settings = load(workbench)
+    return dict(settings=settings, model=settings['model'], models=copy.deepcopy(MODELS), limits=copy.deepcopy(LIMITS),
                 max_pixels=MAX_PIXELS, samplers=SAMPLERS, noise_schedules=NOISE_SCHEDULES,
                 styles=styles(workbench))
 
