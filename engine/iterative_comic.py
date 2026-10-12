@@ -19,7 +19,7 @@ DATA = ROOT / 'iterative_comic_data'
 SCHEMA = '''Return JSON only:
 {"title":"short English title","cast":{"actor1":{"name":"name","personality":"stable personality","appearance":["complete baseline identity and outfit in English"]}},"setting":"initial location","panels":[{"actor":"stable actor ID","description":"one drawable instant in concise English","background":"only this shot's visible setting","dialogues":["zero or one short English line"],"camera":{"subjects":["visible actor IDs"],"focus":"visible focal subject/action","framing":"shot size","angle":"viewpoint"},"visual_states":{"actor1":{"appearance":["complete active identity and outfit"],"held_objects":["objects currently held"],"pose":"pose in this frame"}},"importance":"normal or main"}],"ended":false,"conflict":null}.
 Existing cast IDs and definitions are fixed. Add no new actor unless the task calls for one.
-Choose at most two visible cast actors in a panel; the cast may contain more people who appear in other shots.
+Include every cast actor visibly present in the panel, including group scenes with three or more people. List each visible actor exactly once in camera.subjects and provide their own visual_states. Cast actors who are offscreen stay out of camera.subjects.
 camera.subjects contains only visible cast actor IDs, never props, food, scenery or abstract events. Keep non-person focal objects in camera.focus and description.
 Each panel is ONE instant. State appearance is the complete active identity/outfit, independent of framing. Off-frame clothing remains unchanged. Accepted panel state overrides the cast baseline; never restore removed clothing from that baseline. Pose describes this frame only. Carry state from the first new panel into the second.
 Write every active appearance attribute explicitly; never return only 'same outfit', 'unchanged', or a change relative to another panel. Record explicit removals as attributes such as 'no shoes' or 'barefoot', retaining the other clothing, rather than only omitting the old item. held_objects lists only objects actually held at this instant; an object resting beside the actor is not held.
@@ -163,8 +163,8 @@ class Workbench(EditMixin):
         return count, mode
 
     def characters(self, values, existing=None):
-        if not isinstance(values, list) or len(values) > 4:
-            raise ValueError('인물은 최대 4명까지 지정할 수 있어요.')
+        if not isinstance(values, list):
+            raise ValueError('인물 설정은 목록이어야 해요.')
         rows, used = [], set()
         old_ids = set((existing or {}).keys())
         for index, row in enumerate(values):
@@ -304,7 +304,9 @@ Input:\n''' + json.dumps(context, ensure_ascii=False)
                 raise ValueError('구도 설명이 빠졌어요. 원문은 보존했어요.')
             if actorless:
                 continue
-            if not isinstance(camera.get('subjects'), list) or not camera['subjects'] or any(a not in cast for a in camera['subjects']):
+            if (not isinstance(camera.get('subjects'), list) or not camera['subjects'] or
+                    any(not isinstance(a, str) or a not in cast for a in camera['subjects']) or
+                    len(set(camera['subjects'])) != len(camera['subjects'])):
                 raise ValueError('화면에 등장하는 인물을 확인해 주세요.')
             states = p.get('visual_states', {})
             for actor in camera['subjects']:
@@ -374,7 +376,7 @@ Input:\n''' + json.dumps(context, ensure_ascii=False)
             progress('이야기 설정에 필요한 최소 인물과 관계를 정리하고 있어요.')
             brief = {key: en.get(key, '') for key in ('seed', 'direction', 'place', 'action_hint', 'state_change')}
             planned = self.call(folder, 'cast_plan', '''Plan only the minimum stable cast required by this English comic brief. Return JSON {"characters":[{"id":"actor1","name":"English name","personality":"stable personality and any explicitly requested relationship","appearance":"concise complete baseline identity and outfit in English"}]}.
-Use 1 to 4 distinct characters with stable actor1, actor2, etc IDs. Respect every explicitly requested person count, age, role and relationship. If the brief requests two adult friends, register both distinct adults and their friendship even if one is offscreen in the opening shot. Do not replace a requested friend with an anonymous stranger. Invent names or stable visual distinctions only where unspecified. Do not add unnecessary supporting people.
+Use as many distinct characters as the brief requires, with stable actor1, actor2, etc IDs. Respect every explicitly requested person count, age, role and relationship, including groups of five or more. If the brief requests two adult friends, register both distinct adults and their friendship even if one is offscreen in the opening shot. Do not replace a requested friend with an anonymous stranger. Invent names or stable visual distinctions only where unspecified. Do not add unnecessary supporting people.
 Write no plot, panels, actions, dialogue, future event or future outcome. A requested temporary prop condition or action belongs to the story/state request, not to a new cast member or permanent identity. Return every name/personality/appearance as a nonempty English string; appearance is one comma-separated string, not an array.
 English brief:\n''' + json.dumps(brief, ensure_ascii=False), model='glm-4-6')
             planned_rows = planned.get('characters') if isinstance(planned, dict) else None

@@ -22,6 +22,8 @@ REFERENCE = Path(__file__).resolve().parent / 'reference_settings.json'
 LAYOUTS = {'auto', 'top', 'middle', 'bottom'}
 EXCLUSIONS = 'inset panel, extra panels, empty panel, split panel, zoom layer, duplicate panel'
 TEXT_EXCLUSIONS = 'text, speech bubble, thought bubble, caption, lettering, sound effects'
+# V5 limit per image, across all panels: https://docs.novelai.net/en/image/multiplecharacters/
+MAX_CHARACTER_PROMPTS = 22
 RENDER_VERSION = 'style_first_v4'
 SINGLE_VIEW_RENDER_VERSION = 'single_view_v3'
 PREVIOUS_RENDER_VERSION = 'panel_background_v2'
@@ -83,13 +85,14 @@ def _selected(project, page):
                for key in ('focus', 'framing', 'angle')):
             raise ValueError('Each panel needs the model focus, framing, and angle')
         subjects = camera.get('subjects', [])
-        if not isinstance(subjects, list) or len(subjects) != len(set(subjects)):
+        if (not isinstance(subjects, list) or any(not isinstance(actor, str) for actor in subjects) or
+                len(subjects) != len(set(subjects))):
             raise ValueError('Camera subjects must be a list of distinct actor IDs')
         actorless = actorless_panel(panel)
         visible = [] if actorless else subjects or [panel['actor']]
-        if not actorless and (not 1 <= len(visible) <= 2 or panel['actor'] not in project['cast'] or
+        if not actorless and (not visible or panel['actor'] not in project['cast'] or
                 any(actor not in project['cast'] for actor in visible)):
-            raise ValueError('Each panel supports one or two known visible actors')
+            raise ValueError('컷에 등장하는 인물은 모두 작품에 등록된 인물이어야 해요.')
         if not isinstance(panel.get('description'), str) or not panel['description'].strip():
             raise ValueError('Each panel needs its model-authored visible moment')
         if not isinstance(panel.get('background', ''), str):
@@ -229,6 +232,8 @@ def build_settings(project, page, layout='auto', *, render_version=RENDER_VERSIO
             parts = ([gender] if gender in ('girl', 'boy') else []) + ([label] if label else []) + list(appearance) + [camera_text]
             if len(visible) == 1:
                 parts.append('solo' if single_view else 'solo, one person in this panel')
+            elif len(visible) > 2:
+                parts.append(f'{len(visible)} people in this ' + ('scene' if single_view else 'panel'))
             if panel.get('background'):
                 parts.append(panel['background'])
             if pose:
@@ -240,7 +245,8 @@ def build_settings(project, page, layout='auto', *, render_version=RENDER_VERSIO
             speech = panel.get('dialogues_ko', []) if actor == panel['actor'] else []
             if speech:
                 parts.extend(['speech bubble', *[json.dumps(s, ensure_ascii=False) for s in speech]])
-            cx = x if len(visible) == 1 else x + (-.16 if position == 0 else .16) * zone_width
+            # Spread all actors inside their panel, retaining the original solo/pair positions.
+            cx = x + .64 * ((position + .5) / len(visible) - .5) * zone_width
             center = [dict(x=cx, y=y)]
             positives.append(dict(char_caption=', '.join(parts), centers=center))
             local_negative = '' if speech else TEXT_EXCLUSIONS
@@ -338,6 +344,11 @@ def render_page(project, page, folder, api_key, progress=None, *, anlas_confirme
         raise RuntimeError('An uncertain prior image request exists; automatic retry is disabled')
     if version != RENDER_VERSION:
         raise ValueError('Unrendered legacy settings require a distinct render folder')
+    character_count = len(settings['v4_prompt']['caption']['char_captions'])
+    if character_count > MAX_CHARACTER_PROMPTS:
+        raise ValueError(f'NovelAI V5는 이미지 한 장에 인물별 프롬프트를 최대 {MAX_CHARACTER_PROMPTS}개까지 지원해요. '
+                         f'현재 페이지에는 {character_count}개가 있어요(같은 인물도 컷마다 별도 계산). '
+                         '컷을 여러 페이지로 나누거나 이미지 편집실에서 프롬프트 항목을 줄여 주세요.')
     if not api_key:
         raise ValueError('NovelAI API key is required')
     save(folder / 'allowance.json', ensure_allowance(api_key, settings=settings, confirmed=anlas_confirmed))

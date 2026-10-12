@@ -44,8 +44,6 @@ class EditMixin(RenderingMixin):
         candidate['id'] = original['id']
         self.validate({'panels': [candidate]}, project['cast'], 1)
         subjects = candidate['camera']['subjects']
-        if len(subjects) > 2 or len(set(subjects)) != len(subjects):
-            raise ValueError('한 컷에는 서로 다른 인물을 최대 두 명까지 지정해 주세요.')
         if candidate.get('dialogues') and candidate.get('actor') not in subjects:
             raise ValueError('대사를 말하는 인물이 화면에 있어야 해요.')
         versions = project.setdefault('panel_versions', {}).setdefault(original['id'], [])

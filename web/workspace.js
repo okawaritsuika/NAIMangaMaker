@@ -4,7 +4,6 @@
  const textNode=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n};
  function actors(host='storyActors'){return [...by(host).children].map((row,i)=>({id:row.dataset.actorId||'actor'+(i+1),gender:row.querySelector('[data-field=gender]').value,name:row.querySelector('[data-field=name]').value.trim(),personality:row.querySelector('[data-field=personality]').value.trim(),appearance:row.querySelector('[data-field=appearance]').value.trim()})).filter(r=>r.name||r.personality||r.appearance||r.gender!=='auto')}
  function actor(value={},host='storyActors'){
-  if(by(host).children.length>=4)return;
   const box=textNode('details','actor-fields actor-fold'),head=textNode('summary','actor-head'),title=textNode('strong','actor-summary');
   box.open=!Object.keys(value).length;box.dataset.actorId=host==='storyActors'?'':value.id||'';head.append(title);box.append(head);
   const body=textNode('div','actor-body'),remove=textNode('button','','삭제');remove.type='button';
@@ -20,7 +19,7 @@
   const updateTitle=()=>{const name=box.querySelector('[data-field=name]').value.trim(),appearance=box.querySelector('[data-field=appearance]').value.trim().replace(/\s+/g,' '),gender=gs.value==='auto'?'인물':gs.value;title.textContent=name||gender+(appearance?' · '+appearance.slice(0,48)+(appearance.length>48?'…':''):'');};
   box.addEventListener('input',updateTitle);box.addEventListener('change',updateTitle);updateTitle();
   box.characterLibrary=window.CharacterLibrary.attach({genderInput:gs,nameInput:box.querySelector('[data-field=name]'),personalityInput:box.querySelector('[data-field=personality]'),appearanceInput:box.querySelector('[data-field=appearance]')});
-  if(host==='storyActors')by('addActor').disabled=by(host).children.length>=4;updateActorCount(host);
+  updateActorCount(host);
  }
  function updateActorCount(host='storyActors'){by(host==='storyActors'?'actorCount':'currentActorCount').textContent=by(host).children.length ? by(host).children.length+'명' : '선택';}
  let currentSettingsProject=null;
