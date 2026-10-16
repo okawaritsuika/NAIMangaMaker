@@ -1,7 +1,7 @@
 """Local prompt profiles and exact request previews for Workbench.call stages.
 
-Profiles affect new stage snapshots only. An existing request always wins during
-recovery, including an explicit retry of its failed response. No API key is read.
+Profiles affect new stage snapshots only. Recovery keeps the saved profile;
+an explicit retry may compact a known rejected context. No API key is read.
 """
 import ast
 import copy
@@ -105,7 +105,7 @@ def _warnings(config, *, missing_example=False):
         '{{task}}는 기존의 동적 지시 전체로 바뀝니다. 여기에는 응답 형식과 현재 컷·인물·요청 문맥이 함께 들어갈 수 있습니다.',
         '예시 전체를 고정 문장으로 붙여 넣으면 그 작품의 인물·장면·ID도 다음 요청에 고정될 수 있습니다. Memory와 이전 본문은 별도 읽기 전용 문맥입니다.',
         '기본 작가노트는 원래 Memory/이전 본문이 있는 요청에만 쓰입니다. 기본과 다른 작가노트는 문맥이 없는 요청에도 별도 system 메시지로 적용됩니다.',
-        '변경은 아직 요청을 저장하지 않은 새 단계부터 적용됩니다. 복구·재시도는 이미 저장된 요청을 그대로 사용합니다.',
+        '변경은 아직 요청을 저장하지 않은 새 단계부터 적용됩니다. 복구·재시도에는 저장된 프롬프트 설정을 사용합니다.',
     ]
     if '{{task}}' not in config['task_template']:
         warnings.append('현재 템플릿에는 {{task}}가 없습니다. 기존 동적 지시와 그 안의 응답 형식·현재 작업 문맥을 자동으로 포함하지 않습니다.')
@@ -292,6 +292,85 @@ def _apply(base_request, stage, config):
     return request
 
 
+def _validate_retry_snapshot(stage, accepted, preserved):
+    if not preserved:
+        return
+    base = preserved['base_request']
+    if preserved['base_request_sha256'] != _digest(base):
+        raise ValueError('저장된 원본 프롬프트 스냅샷이 변경되었어요. 원문을 보존했어요.')
+    if (preserved['request_sha256'] != _digest(accepted) or
+            preserved['request_sha256'] != _digest(preserved['request'])):
+        raise ValueError('저장된 프롬프트 요청이 최초 스냅샷과 달라요. 원문을 보존했어요.')
+    # A fitted request intentionally differs from applying the pinned profile to
+    # the original base. Its stored hashes, not re-rendering, identify that input.
+    if preserved.get('context_budget_version') != 1:
+        original = _apply(base, stage, preserved['config']) if preserved['overridden'] else base
+        if original != accepted:
+            raise ValueError('저장된 프롬프트 설정과 요청이 달라요. 원문을 보존했어요.')
+
+
+def context_budget_retry_marker(folder, stage, updates):
+    """Validate and queue a known rejection without making any summary request."""
+    folder = Path(folder)
+    request_name, profile_name = stage + '_request.json', stage + '_prompt_profile.json'
+    if not (folder / request_name).exists():
+        return None
+    with LOCK:
+        accepted = updates[request_name] if request_name in updates else _read(folder / request_name)
+        preserved = (updates[profile_name] if profile_name in updates else
+                     _read(folder / profile_name) if (folder / profile_name).exists() else None)
+        _validate_retry_snapshot(stage, accepted, preserved)
+        base = preserved['base_request'] if preserved else accepted
+        return dict(version=1, stage=stage, queued_at=_now(), request_sha256=_digest(accepted),
+                    base_request_sha256=_digest(base))
+
+
+def state_context_retry_updates(folder):
+    """Prepare a smaller known state request, retaining its pinned prompt profile."""
+    from .story_context import compact_state_context
+    folder = Path(folder)
+    request_path = folder / 'state_resolution_request.json'
+    profile_path = folder / 'state_resolution_prompt_profile.json'
+    if not request_path.exists():
+        return {}
+    with LOCK:
+        accepted = _read(request_path)
+        preserved = _read(profile_path) if profile_path.exists() else None
+        base = preserved['base_request'] if preserved else accepted
+        _validate_retry_snapshot('state_resolution', accepted, preserved)
+        messages = base.get('messages', [])
+        if not messages or messages[-1].get('role') != 'user':
+            return {}
+        task = messages[-1].get('content')
+        if not isinstance(task, str) or not task.startswith('Resolve visual state only for the supplied existing panel descriptions.'):
+            return {}
+        instruction, separator, source = task.rpartition('\nInput:\n')
+        if not separator:
+            return {}
+        try:
+            context = json.loads(source)
+        except ValueError:
+            return {}
+        if (not isinstance(context, dict) or context.get('state_context_version') == 'compact-v1' or
+                not isinstance(context.get('accepted_prefix'), list) or
+                not isinstance(context.get('cast'), dict) or not isinstance(context.get('panels'), list)):
+            return {}
+        compact = compact_state_context(context)
+        updated_base = copy.deepcopy(base)
+        updated_base['messages'][-1]['content'] = instruction + separator + json.dumps(compact, ensure_ascii=False)
+        updated = (_apply(updated_base, 'state_resolution', preserved['config'])
+                   if preserved and preserved['overridden'] else copy.deepcopy(updated_base))
+        if len(json.dumps(updated, ensure_ascii=False)) >= len(json.dumps(accepted, ensure_ascii=False)):
+            return {}
+        updates = {'state_resolution_request.json': updated, 'state_context.json': compact}
+        if preserved:
+            profile = copy.deepcopy(preserved)
+            profile.update(base_request=updated_base, request=updated,
+                           base_request_sha256=_digest(updated_base), request_sha256=_digest(updated))
+            updates['state_resolution_prompt_profile.json'] = profile
+        return updates
+
+
 def prepare_request(workbench, folder, stage, base_request):
     """Called only by Workbench.call, before its existing recovery stage runner."""
     if not isinstance(stage, str) or not re.fullmatch('[a-z][a-z0-9_]*', stage):
@@ -299,6 +378,8 @@ def prepare_request(workbench, folder, stage, base_request):
     folder = Path(folder)
     saved = folder / (stage + '_request.json')
     snapshot = folder / (stage + '_prompt_profile.json')
+    retry_path = folder / (stage + '_context_budget_retry.json')
+    retry = None
     with LOCK:
         if saved.exists():
             accepted = _read(saved)
@@ -306,30 +387,64 @@ def prepare_request(workbench, folder, stage, base_request):
                 preserved = _read(snapshot)
                 if preserved['base_request_sha256'] != _digest(base_request):
                     raise ValueError('현재 동적 지시 또는 문맥이 최초 요청과 달라요. 원문을 보존했어요.')
-                if preserved['request_sha256'] != _digest(accepted):
+                if (preserved['request_sha256'] != _digest(accepted) or
+                        preserved['request_sha256'] != _digest(preserved['request'])):
                     raise ValueError('저장된 프롬프트 요청이 최초 스냅샷과 달라요. 원문을 보존했어요.')
             elif accepted != base_request:
                 raise ValueError('이 단계의 저장된 요청과 현재 요청이 달라요. 원문을 보존했어요.')
-            return accepted
-        if snapshot.exists():
+            if not retry_path.exists():
+                return accepted
+            retry = _read(retry_path)
+            if (retry.get('version') != 1 or retry.get('stage') != stage or
+                    retry.get('request_sha256') != _digest(accepted) or
+                    retry.get('base_request_sha256') != _digest(base_request)):
+                raise ValueError('문맥 재시도 기록과 저장된 요청이 달라요. 원문을 보존했어요.')
+            if not snapshot.exists():
+                # Legacy requests need an original base after fitting, too. Pin
+                # it before the summary can fail or global profiles can change.
+                preserved = dict(version=VERSION, stage=stage, at=_now(), profile_revision=0,
+                    overridden=False, config=defaults(stage, accepted['model']), legacy_request=True,
+                    base_request=copy.deepcopy(base_request), request=copy.deepcopy(accepted),
+                    base_request_sha256=_digest(base_request), request_sha256=_digest(accepted))
+                _save(snapshot, preserved)
+            _validate_retry_snapshot(stage, accepted, preserved)
+        elif retry_path.exists():
+            raise ValueError('문맥 재시도에 필요한 저장된 요청을 찾을 수 없어요.')
+        elif snapshot.exists():
             preserved = _read(snapshot)
             if preserved['base_request_sha256'] != _digest(base_request):
                 raise ValueError('현재 동적 지시 또는 문맥이 최초 스냅샷과 달라요.')
             if preserved['request_sha256'] != _digest(preserved['request']):
                 raise ValueError('저장된 프롬프트 스냅샷이 변경되었어요.')
-            return preserved['request']
-        data = _profiles(workbench)
-        config = _effective(data, stage, base_request['model'])
-        custom = folder / 'story_profile_override.json'
-        overridden = stage in data['profiles'] or stage in data['bindings']
-        if stage == 'story' and custom.exists():
-            config = _config(_read(custom)['config'], defaults(stage, base_request['model']))
-            overridden = True
-        # No selection preserves the original request exactly.
-        request = _apply(base_request, stage, config) if overridden else copy.deepcopy(base_request)
-        _save(snapshot, dict(version=VERSION, stage=stage, at=_now(), profile_revision=data['revision'],
-            overridden=overridden, config=config, base_request=base_request, request=request,
-            base_request_sha256=_digest(base_request), request_sha256=_digest(request)))
+        else:
+            data = _profiles(workbench)
+            config = _effective(data, stage, base_request['model'])
+            custom = folder / 'story_profile_override.json'
+            overridden = stage in data['profiles'] or stage in data['bindings']
+            if stage == 'story' and custom.exists():
+                config = _config(_read(custom)['config'], defaults(stage, base_request['model']))
+                overridden = True
+            request = _apply(base_request, stage, config) if overridden else copy.deepcopy(base_request)
+            preserved = dict(version=VERSION, stage=stage, at=_now(), profile_revision=data['revision'],
+                overridden=overridden, config=config, base_request=base_request, request=request,
+                base_request_sha256=_digest(base_request), request_sha256=_digest(request))
+            # Pin the profile before any memory-generation stages can fail.
+            _save(snapshot, preserved)
+    from .context_budget import fit_request
+    request = fit_request(workbench, folder, stage, preserved['request'])
+    if retry is not None:
+        with LOCK:
+            if (_read(retry_path) != retry or _digest(_read(saved)) != retry['request_sha256'] or
+                    _read(snapshot) != preserved):
+                raise ValueError('기억 요약 중 저장된 요청이 변경되었어요. 원문을 보존했어요.')
+            preserved.update(request=request, request_sha256=_digest(request), context_budget_version=1)
+            _save(snapshot, preserved)
+            _save(saved, request)
+            retry_path.unlink()
+    elif request != preserved['request']:
+        preserved.update(request=request, request_sha256=_digest(request), context_budget_version=1)
+        with LOCK:
+            _save(snapshot, preserved)
     return request
 
 

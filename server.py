@@ -128,7 +128,10 @@ class Handler(BaseHTTPRequestHandler):
         if not self.allowed(True): return self.reply(403, {'error':'접근할 수 없습니다.'})
         try:
             length = int(self.headers.get('Content-Length', '0'))
-            limit = 400000 if self.path.startswith('/api/image-styles') else 6_000_000 if re.fullmatch(r'/api/story/projects/p[0-9a-f]{12}/pages/g[0-9a-f]{12}/studio/render',self.path) else (100000 if self.path.startswith(('/api/story/','/api/workspace','/api/image-settings','/api/characters','/api/prompts/')) else 16384)
+            limit = (400000 if self.path.startswith('/api/image-styles') else
+                     6_000_000 if re.fullmatch(r'/api/story/projects/p[0-9a-f]{12}/pages/g[0-9a-f]{12}/studio/render', self.path) else
+                     2000000 if self.path.startswith(('/api/story/', '/api/workspace')) else
+                     100000 if self.path.startswith(('/api/image-settings', '/api/characters', '/api/prompts/')) else 16384)
             if not 0 <= length <= limit: raise ValueError('요청이 너무 큽니다.')
             data = json.loads(self.rfile.read(length)) if length else {}
             if not isinstance(data, dict): raise ValueError('요청 형식을 확인해 주세요.')

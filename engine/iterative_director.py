@@ -90,7 +90,7 @@ def build_context(project, payload):
         accepted_panel_count=len(panels), accepted_emphasis_count=emphasized, emphasis_allowed=emphasis_allowed,
         current_page=page_rows([p for p in panels if p.get('id') not in assigned][-per_page:]),
         last_completed_page=page_rows([p for p in panels if p.get('id') in last_page_ids]),
-        title=project.get('title_en', ''), direction=project.get('direction', ''),
+        title=project.get('title_en', ''), direction=project.get('direction', ''), initial_brief=project.get('seed_en', ''),
         initial_setting=project.get('setting', ''), cast=copy.deepcopy(project.get('cast', {})),
         canonical_ended_hint=bool(project.get('ended')), accepted_story=compact,
         recent_panels=[{key: copy.deepcopy(p.get(key)) for key in detailed_keys} for p in panels[-8:]],

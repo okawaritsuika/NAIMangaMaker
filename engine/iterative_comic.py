@@ -10,7 +10,7 @@ from pathlib import Path
 from .basic_expansion import SYSTEM, configured_key
 from .iterative_json import json_object
 from .probe import generate
-from .story_context import with_context
+from .story_context import compact_state_context, with_context
 from .iterative_editing import EditMixin
 from .translation_modes import options, english_display, translate_dialogue, dialogue_context, NATURAL_DIALOGUE, concise_instruction
 
@@ -185,13 +185,19 @@ class Workbench(EditMixin):
         return rows
 
     def facts(self, project):
-        return json.dumps(dict(direction=project['direction'], initial_setting=project['setting'],
+        facts = dict(direction=project['direction'], initial_setting=project['setting'],
                                cast=project['cast'], latest_user_setting_edits=project.get('latest_setting_edits'),
-                               note='Cast is baseline identity. Actual prefix supplies active outfit and held objects. Stable baseline edits do not undo active transient states. To change current state, honor an explicit task state_change.'), ensure_ascii=False)
+                               note='Cast is baseline identity. Actual prefix supplies active outfit and held objects. Stable baseline edits do not undo active transient states. To change current state, honor an explicit task state_change.')
+        if project.get('seed_en'):
+            facts['initial_brief'] = project['seed_en']
+        return json.dumps(facts, ensure_ascii=False)
 
     def prepare(self, folder, raw, cast, prefix=None):
         """Resolve visual state without rewriting the writer's accepted scene text."""
-        save(folder / 'state_resolution_source.json', raw)
+        source_path = folder / 'state_resolution_source.json'
+        if source_path.exists() and read(source_path) != raw:
+            raise ValueError('상태를 정리할 장면이 최초 요청과 달라요. 원문을 보존했어요.')
+        save(source_path, raw)
         prepared = copy.deepcopy(raw)
         if prepared.get('conflict'):
             return prepared
@@ -256,7 +262,7 @@ class Workbench(EditMixin):
                        panels=[dict(index=index, **{k: p.get(k) for k in
                            ('actor', 'description', 'background', 'camera', 'visual_states')})
                            for index, p in enumerate(panels, 1)])
-        save(folder / 'state_context.json', context)
+        context = compact_state_context(context)
         task = '''Resolve visual state only for the supplied existing panel descriptions. Do not write, rewrite, expand or regenerate any story, dialogue, background or camera choice.
 Return JSON {"panels":[{"index":1,"visual_states":{"actor1":{"appearance":["every active identity and outfit attribute explicitly in English"],"held_objects":["objects actually held now"],"pose":"the pose at this depicted instant"}}}]}.
 Return each supplied 1-based index exactly once, in order. Use only supplied cast actor IDs and include every actor in that panel's camera.subjects. Return only index and visual_states, with appearance, held_objects and pose for each actor.
@@ -266,6 +272,25 @@ When a request removes an item, make that absence explicit in the complete appea
 Draft visual_states may be incomplete or contradict the description. Treat them as hints, not authority over the described visible facts or accepted active state. In particular, an object resting beside an actor, on the ground, or in a holder is not held. If no change is depicted, carry established held objects forward. Empty held_objects=[] is valid.
 appearance is the COMPLETE active identity and outfit independent of framing, not a delta or a reference such as 'same outfit' or 'unchanged'. Expand inherited details explicitly while retaining compatible new visible details such as frosting on clothing. State only what is established by these inputs; do not invent a new action to explain a discrepancy. Pose describes this frame, not a sequence of actions.
 Input:\n''' + json.dumps(context, ensure_ascii=False)
+        # Completed stages and explicit retries keep their pinned prompt, including
+        # requests saved by older versions. Context-overflow retries are compacted
+        # when the failed attempt is archived, before execution reaches this point.
+        request_path = folder / 'state_resolution_request.json'
+        profile_path = folder / 'state_resolution_prompt_profile.json'
+        if request_path.exists() or profile_path.exists():
+            original = read(profile_path)['base_request'] if profile_path.exists() else read(request_path)
+            original_task = original['messages'][-1]['content']
+            original_context = compact_state_context(json.loads(original_task.rsplit('\nInput:\n', 1)[-1]))
+            keys = ('cast', 'latest_active_states', 'persistent_state_requests', 'current_state_change',
+                    'accepted_prefix', 'earlier_state_changes')
+            panel_keys = ('index', 'actor', 'description', 'background', 'camera', 'visual_states')
+            scene = lambda value: [{key: row.get(key) for key in panel_keys} for row in value['panels']]
+            if (any(original_context.get(key) != context.get(key) for key in keys) or
+                    scene(original_context) != scene(context)):
+                raise ValueError('상태를 정리할 장면 또는 인물 문맥이 최초 요청과 달라요. 원문을 보존했어요.')
+            task = original_task
+        else:
+            save(folder / 'state_context.json', context)
         result = self.call(folder, 'state_resolution', task, model='glm-4-6')
         resolved = result.get('panels')
         if not isinstance(resolved, list) or len(resolved) != len(panels) or any(
@@ -360,8 +385,8 @@ Input:\n''' + json.dumps(context, ensure_ascii=False)
         generation_options = options(payload.get('generation_options'))
         count, mode = self.controls(payload)
         seed = text(payload.get('seed'))
-        if not seed or len(seed) > 6000:
-            raise ValueError('단어나 짧은 문장을 입력해 주세요. 6,000자까지 가능해요.')
+        if not seed or len(seed) > 200000:
+            raise ValueError('이야기 소재와 설정을 입력해 주세요. 200,000자까지 가능해요.')
         data = dict(seed=seed, direction=text(payload.get('direction')), place=text(payload.get('place')),
                     characters=self.characters(payload.get('characters', [])), count=count, dialogue=mode,
                     action_hint=text(payload.get('action_hint')), state_change=text(payload.get('state_change')))
@@ -429,7 +454,7 @@ Keep each panel's primary actor, described acting person, dialogue speaker and c
             raise ValueError('무대사 요청에 대사가 포함됐어요. 원문은 보존했어요.')
         if mode == 'with' and any(len(p['dialogues']) != 1 for p in panels):
             raise ValueError('대사 넣기 요청에 필요한 한 줄 대사가 빠졌어요. 원문은 보존했어요.')
-        project = dict(id=pid, title_en=text(raw.get('title')), title='새 이야기', seed_ko=seed,
+        project = dict(id=pid, title_en=text(raw.get('title')), title='새 이야기', seed_ko=seed, seed_en=en['seed'],
                        direction=en['direction'], direction_ko=data['direction'], setting=en['place'] or text(raw.get('setting')),
                        place_ko=data['place'], cast=cast, characters_ko=data['characters'], panels=[], pages=[],
                        revision=1, updated=now(), ended=bool(raw.get('ended')), operations=[], generation_options=generation_options)

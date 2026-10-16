@@ -27,6 +27,7 @@
     "engine/__init__.py",
     "engine/basic_expansion.py",
     "engine/comic_library.py",
+    "engine/context_budget.py",
     "engine/default_system.txt",
     "engine/export_people_page.py",
     "engine/export_suite_webp.py",

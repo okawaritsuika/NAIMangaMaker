@@ -239,6 +239,17 @@ def archive_failed_stage(workbench, job, *, automatic=False):
     destination = (archive / stage).resolve()
     if not destination.is_relative_to(base) or destination.exists():
         raise ValueError('이미 보존한 재시도 기록을 덮어쓸 수 없어요.')
+    updates, budget_retry = {}, None
+    from .prompt_management import STAGES, context_budget_retry_marker, state_context_retry_updates
+    if (not automatic and stage in STAGES and
+            (folder / 'result.json').exists() and (folder / 'error.txt').exists() and
+            read(folder / 'result.json').get('http_status') == 400 and
+            'too much context' in (folder / 'error.txt').read_text(encoding='utf-8').lower()):
+        # Validate snapshots before moving anything; only the explicit retry may
+        # replace this known rejected context, using the originally pinned profile.
+        if stage == 'state_resolution':
+            updates = state_context_retry_updates(folder.parent)
+        budget_retry = context_budget_retry_marker(folder.parent, stage, updates)
     files = []
     if folder.exists():
         for path in sorted(folder.rglob('*')):
@@ -251,7 +262,21 @@ def archive_failed_stage(workbench, job, *, automatic=False):
     if marker.exists() and stage != 'image':
         destination.mkdir(parents=True, exist_ok=True)
         marker.rename(destination / 'stage_attempt.json')
+    preserved_names = set(updates)
+    if budget_retry is not None:
+        preserved_names.update((stage + '_request.json', stage + '_prompt_profile.json'))
+    for name in sorted(preserved_names):
+        source = folder.parent / name
+        if source.exists():
+            original = source.read_bytes()
+            (destination / name).write_bytes(original)
+            files.append(dict(path=name, sha256=hashlib.sha256(original).hexdigest()))
+    for name, value in updates.items():
+        save(folder.parent / name, value)
+    if budget_retry is not None:
+        save(folder.parent / (stage + '_context_budget_retry.json'), budget_retry)
     save(archive / 'decision.json', dict(automatic_retry=automatic, stage=stage, job_id=job['id'],
-        preserved_files=files, original_folder=job['stage_folder']))
+        preserved_files=files, original_folder=job['stage_folder'], state_context_compacted=bool(updates),
+        context_budget_retry_queued=budget_retry is not None))
     job['stage_folder'] = destination.relative_to(base).as_posix()
     job['archived_response'] = job['stage_folder']

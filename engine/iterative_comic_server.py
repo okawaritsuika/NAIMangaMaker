@@ -199,7 +199,9 @@ class App:
                 raise ValueError(public['retry_conflict'] or '실패하거나 중단된 생성 단계만 재시도할 수 있어요.')
             if job['project_id'] in self.active:
                 raise ValueError('이 작품의 이전 요청이 진행 중이에요.')
-            if not restart:
+            # A fresh operation still shares the project's summary cache. An
+            # explicit restart must release its failed attempt before reuse.
+            if not restart or (not automatic and job.get('stage') == 'context_summary'):
                 archive_failed_stage(self.workbench, job, automatic=automatic)
                 self.persist(job)
             return self.job(job['kind'], job['payload'], job['project_id'], job.get('target_id'), retry=job, restart=restart,
